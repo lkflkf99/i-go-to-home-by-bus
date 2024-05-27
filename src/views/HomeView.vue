@@ -44,20 +44,8 @@ onMounted(async () => {
         <IconMdiPlusCircle />
       </button>
     </div>
-
-    <button class="p-2 bg-gray-50 shadow rounded" @click="toggleDark()">
+    <el-button type="primary" @click="toggleDark()">
       <IconMdiBrightness6 />
-    </button>
-
-    <ul class="my-4 grid grid-cols-4 gap-6">
-      <li
-        v-for="user in users"
-        :key="user.id"
-        class="p-5 rounded-md border border-gray-700 dark:border-white"
-      >
-        <h3 class="text-lg font-semibold">{{ user.name }}</h3>
-        <p class="text-sm tracking-wide truncate">{{ user.email }}</p>
-      </li>
-    </ul>
+    </el-button>
   </div>
 </template>
