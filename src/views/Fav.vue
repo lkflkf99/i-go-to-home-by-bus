@@ -4,11 +4,12 @@
       class="flex justify-between gap-x-6 py-5"
       v-for="(item, index) in favRoutes"
       v-bind:key="index"
-      @click="() => goToDetails(item)"
+      @click="() => goToDetails(item, item.co || 'KMB')"
     >
       <div class="flex min-w-0 gap-x-4">
         <div class="rounded-ful">
           <IconTablerBus class="h-6 w-6" />
+          <p class="text-sm font-semibold text-gray-900">{{ item.co || 'KMB' }}</p>
         </div>
         <div class="min-w-0 flex-auto">
           <p class="text-sm font-semibold leading-6 text-gray-900">{{ item.route }}</p>
@@ -28,10 +29,10 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const favRoutes = ref(JSON.parse(localStorage.getItem('favRoutes') || '[]'))
 
-const goToDetails = (routeItem) => {
+const goToDetails = (routeItem, company) => {
   router.push({
     name: 'Bus Stops',
-    query: { route: routeItem.route, serviceType: routeItem.service_type },
+    query: { route: routeItem.route, serviceType: routeItem.service_type, company },
   })
 }
 </script>

@@ -1,7 +1,7 @@
 <template>
   <div class="antialiased w-screen h-screen min-h-screen duration-300 transition">
     <el-container class="h-full">
-      <el-header class="flex items-center">
+      <el-header class="flex items-center page-header">
         <el-page-header @back="goBack">
           <template #content>
             <span class="text-large font-600 mr-3">{{ route.name }}</span>
@@ -73,7 +73,7 @@ const getMenuBtnType = (path: string) => {
 }
 
 .page-header {
-  padding: 24px 0;
+  border: 1px solid #ebeef5;
 }
 
 .el-button {

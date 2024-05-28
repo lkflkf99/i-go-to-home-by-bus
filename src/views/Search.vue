@@ -13,15 +13,16 @@
       class="flex justify-between gap-x-6 py-5"
       v-for="(item, index) in displayRouteList"
       v-bind:key="index"
-      @click="() => goToDetails(item)"
+      @click="() => goToDetails(item, item.co || 'KMB')"
     >
       <div class="flex min-w-0 gap-x-4">
         <div class="rounded-ful">
           <IconTablerBus class="h-6 w-6" />
+          <p class="text-sm font-semibold text-gray-900">{{ item.co || 'KMB' }}</p>
         </div>
         <div class="min-w-0 flex-auto">
-          <p class="text-sm font-semibold leading-6 text-gray-900">{{ item.route }}</p>
-          <p class="mt-1 truncate text-xs leading-5 text-gray-500">
+          <p class="text-sm font-semibold text-gray-900">{{ item.route }}</p>
+          <p class="mt-1 truncate text-xs text-gray-500">
             {{ item.orig_tc }} - {{ item.dest_tc }}
           </p>
         </div>
@@ -50,8 +51,9 @@ const router = useRouter()
 const favRoutes = ref(JSON.parse(localStorage.getItem('favRoutes') || '[]'))
 
 onMounted(async () => {
-  const { data } = await API.get('/kmb/route')
-  displayRouteList.value = routeList.value = data.data.filter((item) => item.bound === 'O')
+  const { data: kmbRoute } = await API.get('/kmb/route')
+  const { data: ctbRoute } = await API.get('/ctb/route/CTB')
+  displayRouteList.value = routeList.value = kmbRoute.data.filter((item) => item.bound === 'O').concat(ctbRoute.data)
 })
 
 watch(
@@ -67,10 +69,10 @@ watch(
   }
 )
 
-const goToDetails = (routeItem) => {
+const goToDetails = (routeItem, company) => {
   router.push({
     name: 'Bus Stops',
-    query: { route: routeItem.route, serviceType: routeItem.service_type },
+    query: { route: routeItem.route, serviceType: routeItem.service_type, company },
   })
 }
 
@@ -90,9 +92,11 @@ const isFav = (route) => {
 
 <style scoped>
 .search-input {
+  margin: 0 -20px;
+  padding: 8px 16px;
   top: 60px;
   position: fixed;
-  width: calc(100% - 38px);
+  width: 100%;
   background-color: #fff;
   z-index: 1;
 }
