@@ -17,7 +17,7 @@
     >
       <div class="flex min-w-0 gap-x-4">
         <div class="rounded-ful">
-          <IconBxBus class="h-6 w-6" />
+          <IconTablerBus class="h-6 w-6" />
         </div>
         <div class="min-w-0 flex-auto">
           <p class="text-sm font-semibold leading-6 text-gray-900">{{ item.route }}</p>
@@ -27,13 +27,10 @@
         </div>
       </div>
       <div class="shrink-0 sm:flex sm:flex-col sm:items-end">
-        <el-button
-          type="warning"
-          :icon="isFav(item) ? StarFilled : Star"
-          circle
-          text
-          @click.stop="() => toggleFav(item)"
-        />
+        <el-icon :size="24" color="#ffcc00" @click.stop="() => toggleFav(item)">
+          <StarFilled v-if="isFav(item)" />
+          <Star v-else />
+        </el-icon>
       </div>
     </li>
   </ul>

@@ -9,12 +9,12 @@ const router = createRouter({
       redirect: '/fav',
     },
     {
-      path: '/search',
+      path: '/route',
       name: 'Bus Routes',
       component: () => import('../views/Search.vue'),
     },
     {
-      path: '/route-details',
+      path: '/route/details',
       name: 'Bus Stops',
       component: () => import('../views/RouteDetails.vue'),
     },

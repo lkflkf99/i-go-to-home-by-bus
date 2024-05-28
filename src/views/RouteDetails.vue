@@ -17,7 +17,7 @@
     >
       <div class="flex min-w-0 gap-x-4">
         <div class="rounded-ful">
-          <IconBxBus class="h-6 w-6" />
+          <IconTablerBusStop class="h-6 w-6" />
         </div>
         <div class="min-w-0 flex-auto">
           <p class="text-sm font-semibold leading-6 text-gray-900">{{ stop.stop_tc }}</p>
@@ -50,7 +50,6 @@ const stops = ref([])
 const router = useRouter()
 const route = useRoute()
 const isPageLoading = ref(false)
-const isOpeningMap = ref(false)
 
 const getCurrentLocation = () => {
   return new Promise((resolve, reject) => {

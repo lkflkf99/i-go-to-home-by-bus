@@ -8,7 +8,7 @@
     >
       <div class="flex min-w-0 gap-x-4">
         <div class="rounded-ful">
-          <IconBxBus class="h-6 w-6" />
+          <IconTablerBus class="h-6 w-6" />
         </div>
         <div class="min-w-0 flex-auto">
           <p class="text-sm font-semibold leading-6 text-gray-900">{{ item.route }}</p>
@@ -23,7 +23,6 @@
 
 <script lang="ts" setup>
 import { ref } from 'vue'
-import { Star, StarFilled } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()

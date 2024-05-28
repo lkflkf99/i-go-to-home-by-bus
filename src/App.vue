@@ -10,10 +10,35 @@
       </el-header>
       <el-main><RouterView /></el-main>
       <el-footer class="flex justify-between footer-container">
-        <el-button type="primary" :icon="Star" circle @click="router.push('/fav')" />
-        <el-button type="primary" :icon="Search" circle @click="router.push('/search')" />
-        <el-button type="primary" :icon="Location" circle @click="router.push('/location')" />
-        <el-button type="primary" :icon="Setting" circle @click="router.push('/setting')" />
+        <el-button
+          :type="getMenuBtnType('/fav')"
+          :icon="Star"
+          circle
+          text
+          @click="router.push('/fav')"
+        >
+        </el-button>
+        <el-button
+          :type="getMenuBtnType('/route')"
+          :icon="Search"
+          circle
+          text
+          @click="router.push('/route')"
+        />
+        <el-button
+          :type="getMenuBtnType('/location')"
+          :icon="Location"
+          circle
+          text
+          @click="router.push('/location')"
+        />
+        <el-button
+          :type="getMenuBtnType('/setting')"
+          :icon="Setting"
+          circle
+          text
+          @click="router.push('/setting')"
+        />
       </el-footer>
     </el-container>
   </div>
@@ -28,6 +53,10 @@ const router = useRouter()
 
 const goBack = () => {
   router.back()
+}
+
+const getMenuBtnType = (path: string) => {
+  return route.path === path ? 'primary' : null
 }
 
 // const showBack = () => {
@@ -45,5 +74,9 @@ const goBack = () => {
 
 .page-header {
   padding: 24px 0;
+}
+
+.el-button {
+  font-size: 20px;
 }
 </style>

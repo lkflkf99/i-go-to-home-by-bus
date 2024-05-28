@@ -6,6 +6,8 @@ declare module 'vue' {
   export interface GlobalComponents {
     HelloWorld: typeof import('./components/HelloWorld.vue')['default']
     IconBxBus: typeof import('~icons/bx/bus')['default']
+    IconTablerBus: typeof import('~icons/tabler/bus')['default']
+    IconTablerBusStop: typeof import('~icons/tabler/bus-stop')['default']
   }
 }
 
