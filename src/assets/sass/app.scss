@@ -44,7 +44,7 @@ html.dark {
 }
 
 #nprogress .bar {
-  background: rgb(13, 148, 136);
+  background: rgb(64, 158, 255);
   opacity: 0.75;
   position: fixed;
   z-index: 1031;
@@ -52,4 +52,8 @@ html.dark {
   left: 0;
   width: 100%;
   height: 2px;
+}
+
+.el-message {
+  width: 100%;
 }

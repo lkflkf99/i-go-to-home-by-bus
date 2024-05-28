@@ -7,12 +7,27 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: () => import('../views/HomeView.vue'),
+      component: () => import('../views/Home.vue'),
     },
     {
-      path: '/about',
-      name: 'about',
-      component: () => import('../views/AboutView.vue'),
+      path: '/search',
+      name: 'Bus Routes',
+      component: () => import('../views/Search.vue'),
+    },
+    {
+      path: '/route-details',
+      name: 'Bus Stops',
+      component: () => import('../views/RouteDetails.vue'),
+    },
+    {
+      path: '/fav',
+      name: 'Fav',
+      component: () => import('../views/Fav.vue'),
+    },
+    {
+      path: '/setting',
+      name: 'Setting',
+      component: () => import('../views/Setting.vue'),
     },
   ],
 })

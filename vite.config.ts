@@ -56,4 +56,22 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  server: {
+    host: 'localhost',
+    port: 3000,
+    open: false,
+    https: false,
+    proxy: {
+      '/api/ctb': {
+        target: 'https://rt.data.gov.hk/v2/transport/citybus',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/\/api\/ctb\//g, ''),
+      },
+      '/api/kmb': {
+        target: 'https://data.etabus.gov.hk/v1/transport/kmb',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/\/api\/kmb\//g, ''),
+      },
+    },
+  },
 })

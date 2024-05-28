@@ -58,5 +58,14 @@
     "vitest": "0.5.0",
     "vue-tsc": "^0.31.4"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "vue": {
+    "pwa": {
+      "name": "I go to home by bus",
+      "themeColor": "#4DBA87",
+      "msTileColor": "#000000",
+      "appleMobileWebAppCapable": "yes",
+      "appleMobileWebAppStatusBarStyle": "black"
+    }
+  }
 }
