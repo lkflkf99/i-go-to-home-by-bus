@@ -27,8 +27,13 @@ const route = useRoute()
 const router = useRouter()
 
 const goBack = () => {
-  console.log('go back')
+  router.back()
 }
+
+// const showBack = () => {
+//   const tabPages = ['Fav', 'Bus Routes', 'Setting']
+//   return !tabPages.includes(route.name)
+// }
 </script>
 
 <style scoped>

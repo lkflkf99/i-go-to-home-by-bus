@@ -7,11 +7,6 @@
   command = "yarn build"
 
 [[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
-[[redirects]]
   from = "/api/ctb/*"
   to = "https://rt.data.gov.hk/v2/transport/citybus/:splat"
   status = 200
@@ -22,3 +17,8 @@
   to = "https://data.etabus.gov.hk/v1/transport/kmb/:splat"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
