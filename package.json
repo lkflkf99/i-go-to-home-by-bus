@@ -29,7 +29,6 @@
     "vue-router": "^4.0.12"
   },
   "devDependencies": {
-    "@vite-pwa/assets-generator": "^0.2.4",
     "@iconify/json": "^2.2.214",
     "@intlify/vite-plugin-vue-i18n": "^3.3.1",
     "@rushstack/eslint-patch": "^1.1.0",
