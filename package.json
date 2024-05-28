@@ -1,5 +1,5 @@
 {
-  "name": "vue3-vite-starter",
+  "name": "i-go-to-home-by-bus",
   "version": "0.0.1",
   "scripts": {
     "build": "vue-tsc --noEmit && vite build",
@@ -20,6 +20,7 @@
     "nprogress": "^0.2.0",
     "pinia": "^2.0.11",
     "register-service-worker": "^1.7.2",
+    "vite-plugin-pwa": "0.12.0",
     "vue": "^3.2.31",
     "vue-i18n": "^9.1.9",
     "vue-router": "^4.0.12"
@@ -58,14 +59,5 @@
     "vitest": "0.5.0",
     "vue-tsc": "^0.31.4"
   },
-  "license": "MIT",
-  "vue": {
-    "pwa": {
-      "name": "I go to home by bus",
-      "themeColor": "#4DBA87",
-      "msTileColor": "#000000",
-      "appleMobileWebAppCapable": "yes",
-      "appleMobileWebAppStatusBarStyle": "black"
-    }
-  }
+  "license": "MIT"
 }

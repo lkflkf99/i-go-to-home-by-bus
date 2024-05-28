@@ -9,6 +9,7 @@ import Components from 'unplugin-vue-components/vite'
 import AutoImport from 'unplugin-auto-import/vite'
 import Inspect from 'vite-plugin-inspect'
 import VueI18n from '@intlify/vite-plugin-vue-i18n'
+import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -50,6 +51,7 @@ export default defineConfig({
       // change this to enable inspect for debugging
       enabled: false,
     }),
+    VitePWA({ registerType: 'autoUpdate' })
   ],
   resolve: {
     alias: {
@@ -74,4 +76,7 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    chunkSizeWarningLimit: 1024,
+  }
 })
