@@ -26,11 +26,11 @@
           @click="router.push('/route')"
         />
         <el-button
-          :type="getMenuBtnType('/location')"
+          :type="getMenuBtnType('/map')"
           :icon="Location"
           circle
           text
-          @click="router.push('/location')"
+          @click="router.push('/map')"
         />
         <el-button
           :type="getMenuBtnType('/setting')"
@@ -47,6 +47,7 @@
 <script lang="ts" setup>
 import { useRouter, useRoute } from 'vue-router'
 import { Location, Setting, Search, Star } from '@element-plus/icons-vue'
+import { fetchBusData } from '@/services/BusService'
 
 const route = useRoute()
 const router = useRouter()
@@ -63,6 +64,12 @@ const getMenuBtnType = (path: string) => {
 //   const tabPages = ['Fav', 'Bus Routes', 'Setting']
 //   return !tabPages.includes(route.name)
 // }
+
+onMounted(() => {
+  if (!localStorage.getItem('dbLastUpdateTime')) {
+    fetchBusData()
+  }
+})
 </script>
 
 <style scoped>

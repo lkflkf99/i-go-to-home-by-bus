@@ -54,6 +54,7 @@ import haversine from 'haversine-distance'
 import { ElLoading, ElMessage } from 'element-plus'
 import { Switch, Refresh } from '@element-plus/icons-vue'
 import API from '@/services/ApiService'
+import { getCurrentLocation } from '@/utils'
 import { formatDistanceToNow } from 'date-fns'
 
 const stops = ref([])
@@ -63,27 +64,6 @@ const isOutbound = ref(true)
 
 const getDirection = () => {
   return isOutbound.value ? { name: 'outbound', code: 'O' } : { name: 'inbound', code: 'I' }
-}
-
-const getCurrentLocation = () => {
-  return new Promise((resolve, reject) => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          resolve({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          })
-        },
-        (error) => {
-          reject(error)
-        }
-      )
-    } else {
-      ElMessage.error({ message: 'Geolocation is not supported by this browser.' })
-      reject(new Error('Geolocation is not supported by this browser.'))
-    }
-  })
 }
 
 const handleStopClick = async (stop) => {

@@ -41,20 +41,14 @@
 import { ref } from 'vue'
 import { Star, StarFilled } from '@element-plus/icons-vue'
 import { useRouter, useRoute } from 'vue-router'
-import API from '@/services/ApiService'
+// import API from '@/services/ApiService'
 import { Search } from '@element-plus/icons-vue'
 
 const searchInput = ref('')
-const displayRouteList = ref([])
-const routeList = ref([])
+const displayRouteList = ref(JSON.parse(localStorage.getItem('routes') || '[]'))
+const routeList = ref(JSON.parse(localStorage.getItem('routes') || '[]'))
 const router = useRouter()
 const favRoutes = ref(JSON.parse(localStorage.getItem('favRoutes') || '[]'))
-
-onMounted(async () => {
-  const { data: kmbRoute } = await API.get('/kmb/route')
-  const { data: ctbRoute } = await API.get('/ctb/route/CTB')
-  displayRouteList.value = routeList.value = kmbRoute.data.filter((item) => item.bound === 'O').concat(ctbRoute.data)
-})
 
 watch(
   () => searchInput.value,
