@@ -8,7 +8,7 @@
     />
   </div>
 
-  <ul class="divide-y divide-gray-100 mt-8">
+  <ul class="divide-y divide-gray-100 mt-8" v-infinite-scroll="loadRoute">
     <li
       class="flex justify-between gap-x-6 py-5"
       v-for="(item, index) in displayRouteList"
@@ -22,9 +22,7 @@
         </div>
         <div class="min-w-0 flex-auto">
           <p class="text-sm font-semibold text-gray-900">{{ item.route }}</p>
-          <p class="mt-1 truncate text-xs text-gray-500">
-            {{ item.orig_tc }} - {{ item.dest_tc }}
-          </p>
+          <p class="mt-1 truncate text-xs text-gray-500">{{ item.orig_tc }} - {{ item.dest_tc }}</p>
         </div>
       </div>
       <div class="shrink-0 sm:flex sm:flex-col sm:items-end">
@@ -44,8 +42,9 @@ import { useRouter, useRoute } from 'vue-router'
 // import API from '@/services/ApiService'
 import { Search } from '@element-plus/icons-vue'
 
+const scrollCount = ref(10)
 const searchInput = ref('')
-const displayRouteList = ref(JSON.parse(localStorage.getItem('routes') || '[]'))
+const displayRouteList = ref(JSON.parse(localStorage.getItem('routes') || '[]').slice(0, 10))
 const routeList = ref(JSON.parse(localStorage.getItem('routes') || '[]'))
 const router = useRouter()
 const favRoutes = ref(JSON.parse(localStorage.getItem('favRoutes') || '[]'))
@@ -54,7 +53,7 @@ watch(
   () => searchInput.value,
   (value) => {
     if (!value) {
-      displayRouteList.value = routeList.value
+      displayRouteList.value = routeList.value.slice(0, 10)
     } else {
       displayRouteList.value = routeList.value.filter((item) =>
         item.route.includes(value.toUpperCase())
@@ -81,6 +80,15 @@ const toggleFav = (route) => {
 
 const isFav = (route) => {
   return favRoutes.value.some((item) => item.route === route.route)
+}
+
+const loadRoute = () => {
+  if (!searchInput.value) {
+    displayRouteList.value = displayRouteList.value.concat(
+      routeList.value.slice(scrollCount.value, scrollCount.value + 10)
+    )
+    scrollCount.value += 10
+  }
 }
 </script>
 

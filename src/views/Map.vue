@@ -2,9 +2,10 @@
   <GoogleMap
     v-loading="isLoading"
     api-key="AIzaSyAd3JuKmaDu5q7FnmlvzjDb4bTd06BGAjY"
-    style="width: 100%; height: 100%"
+    style="height: 100%; margin: -20px"
     :center="center"
     :zoom="17"
+    ref="mapRef"
   >
     <Circle
       :options="{
@@ -20,12 +21,12 @@
     <Marker
       v-for="item in nearbyStops"
       v-bind:key="item.stop"
-      :options="{ position: { lat: Number(item.lat), lng: Number(item.long) } }"
+      :options="{ position: { lat: Number(item.lat), lng: Number(item.long) }, label: 'KMB' }"
       @click="() => openStopDetails(item)"
     >
     </Marker>
   </GoogleMap>
-  <el-dialog v-model="dialog.visible" :title="dialog.title">
+  <el-dialog v-model="dialog.visible" :title="dialog.title" width="90%">
     <ul class="divide-y divide-gray-100 mt-8">
       <li
         class="flex justify-between gap-x-6 py-5"
@@ -63,6 +64,7 @@ import API from '@/services/ApiService'
 import { useRouter } from 'vue-router'
 import { formatDistanceToNow } from 'date-fns'
 
+const mapRef = ref()
 const router = useRouter()
 const isLoading = ref(true)
 const center = ref(null)
@@ -72,6 +74,20 @@ const dialog = ref({
   visible: false,
   routes: null,
 })
+
+watch(
+  () => mapRef.value?.ready,
+  (ready) => {
+    if (!ready) return
+
+    mapRef.value.map.setOptions({
+      zoomControl: false,
+      streetViewControl: false,
+      fullscreenControl: false,
+      mapTypeControl: false,
+    })
+  }
+)
 
 onMounted(async () => {
   const { latitude, longitude } = await getCurrentLocation()

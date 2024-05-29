@@ -27,7 +27,12 @@
             <IconTablerBusStop class="h-6 w-6" />
           </div>
           <div class="min-w-0 flex-auto">
-            <p class="text-sm font-semibold leading-6 text-gray-900">{{ stop.stop_tc }}</p>
+            <p
+              class="text-sm font-semibold leading-6 text-gray-900"
+              :class="{ 'text-blue-500': stop?.distance?.toFixed(2) <= 500 }"
+            >
+              {{ stop.stop_tc }}
+            </p>
             <p class="mt-1 truncate text-xs leading-5 text-gray-500">
               Distance: {{ stop?.distance?.toFixed(2) }}M
             </p>
@@ -35,7 +40,8 @@
         </div>
         <div class="shrink-0 flex flex-col items-end">
           <p
-            class="mt-1 text-xs leading-5 text-gray-500"
+            class="mt-1 text-xs leading-5"
+            :class="{ 'font-bold': index === 0, 'text-gray-500': index !== 0 }"
             v-for="(stopEta, index) in stop.eta"
             v-bind:key="index"
           >
@@ -134,7 +140,6 @@ const handleRefresh = () => {
 onMounted(() => {
   fetchDetails()
 })
-
 </script>
 
 <style scoped>
