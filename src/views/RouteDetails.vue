@@ -79,7 +79,7 @@ const handleStopClick = async (stop) => {
     background: 'rgba(0, 0, 0, 0.7)',
   })
   const currLocation = await getCurrentLocation()
-  const url = `https://www.google.com/maps/dir/?api=1&origin=${currLocation.latitude},${currLocation.longitude}&destination=${stop.lat},${stop.long}`
+  const url = `https://www.google.com/maps/dir/${currLocation.latitude},${currLocation.longitude}/${stop.lat},${stop.long}`
   loading.close()
   window.open(url, '_blank')
 }

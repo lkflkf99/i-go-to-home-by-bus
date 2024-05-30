@@ -11,6 +11,9 @@ export const getCurrentLocation = () => {
           })
         },
         (error) => {
+          if (error.code === 1) {
+            ElMessage.error({ message: 'Please enable location permission' })
+          }
           reject(error)
         }
       )
