@@ -9,36 +9,30 @@
         </el-page-header>
       </el-header>
       <el-main><RouterView /></el-main>
-      <el-footer class="flex justify-between footer-container">
-        <el-button
-          :type="getMenuBtnType('/fav')"
-          :icon="Star"
-          circle
-          text
-          @click="router.push('/fav')"
-        >
-        </el-button>
-        <el-button
-          :type="getMenuBtnType('/route')"
-          :icon="Search"
-          circle
-          text
-          @click="router.push('/route')"
-        />
-        <el-button
-          :type="getMenuBtnType('/map')"
-          :icon="Location"
-          circle
-          text
-          @click="router.push('/map')"
-        />
-        <el-button
-          :type="getMenuBtnType('/setting')"
-          :icon="Setting"
-          circle
-          text
-          @click="router.push('/setting')"
-        />
+      <el-footer class="flex justify-around footer-container">
+        <div class="footer-tab" @click="router.push('/fav')">
+          <el-icon :size="24" :color="getMenuColor('/fav')">
+            <Star />
+          </el-icon>
+        </div>
+
+        <div class="footer-tab" @click="router.push('/route')">
+          <el-icon :size="24" :color="getMenuColor('/route')">
+            <Search />
+          </el-icon>
+        </div>
+
+        <div class="footer-tab" @click="router.push('/map')">
+          <el-icon :size="24" :color="getMenuColor('/map')">
+            <Location />
+          </el-icon>
+        </div>
+
+        <div class="footer-tab" @click="router.push('/setting')">
+          <el-icon :size="24" :color="getMenuColor('/setting')">
+            <Setting />
+          </el-icon>
+        </div>
       </el-footer>
     </el-container>
   </div>
@@ -56,8 +50,8 @@ const goBack = () => {
   router.back()
 }
 
-const getMenuBtnType = (path: string) => {
-  return route.path === path ? 'primary' : null
+const getMenuColor = (path: string) => {
+  return route.path === path ? '#409eff' : null
 }
 
 // const showBack = () => {
@@ -76,14 +70,15 @@ onMounted(() => {
 .footer-container {
   border: 1px solid #ebeef5;
   border-radius: 16px 16px 0 0;
-  padding: 16px;
+  align-items: center;
 }
 
 .page-header {
   border: 1px solid #ebeef5;
 }
 
-.el-button {
-  font-size: 20px;
+.footer-tab {
+  display: flex;
+  padding: 16px;
 }
 </style>
