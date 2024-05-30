@@ -18,7 +18,7 @@
     <ul class="divide-y divide-gray-100">
       <li
         class="flex justify-between gap-x-6 py-5"
-        v-for="(stop, index) in stops"
+        v-for="(stop, index) in displayStops"
         v-bind:key="index"
         @click="() => handleStopClick(stop)"
       >
@@ -29,7 +29,7 @@
           <div class="min-w-0 flex-auto">
             <p
               class="text-sm font-semibold leading-6 text-gray-900"
-              :class="{ 'text-blue-500': stop?.distance?.toFixed(2) <= 500 }"
+              :class="{ 'text-blue-500': stop?.distance <= 200 }"
             >
               {{ stop.stop_tc }}
             </p>
@@ -57,13 +57,22 @@
 import { ref } from 'vue'
 import { useRoute } from 'vue-router'
 import haversine from 'haversine-distance'
-import { ElLoading, ElMessage } from 'element-plus'
+import { ElLoading } from 'element-plus'
 import { Switch, Refresh } from '@element-plus/icons-vue'
 import API from '@/services/ApiService'
 import { getCurrentLocation } from '@/utils'
 import { formatDistanceToNow } from 'date-fns'
+import type { RouteStopResp, StopResp, EtaResp, RouteStop, Eta } from '@/model'
 
-const stops = ref([])
+interface DisplayStops extends RouteStop {
+  stop_tc: string
+  lat: string
+  long: string
+  eta: Eta[]
+  distance: number
+}
+
+const displayStops = ref<DisplayStops[]>([])
 const route = useRoute()
 const isPageLoading = ref(false)
 const isOutbound = ref(true)
@@ -81,7 +90,7 @@ const handleStopClick = async (stop) => {
   const currLocation = await getCurrentLocation()
   const url = `https://www.google.com/maps/dir/?api=1&origin=${currLocation.latitude},${currLocation.longitude}&destination=${stop.lat},${stop.long}`
   loading.close()
-  window.open(url)
+  window.location.href = url
 }
 
 const stopDetailsUrl = (stopId) => ({
@@ -98,9 +107,13 @@ const etaUrl = (stopId) => {
 }
 
 const fetchDetails = async () => {
-  isPageLoading.value = true
-
   const { query } = route
+
+  if (typeof query.company !== 'string') {
+    return
+  }
+
+  isPageLoading.value = true
   const currLocation = await getCurrentLocation()
 
   const routeStopUrl = {
@@ -108,24 +121,30 @@ const fetchDetails = async () => {
     CTB: `/ctb/route-stop/CTB/${query.route}/${getDirection().name}`,
   }
 
-  const { data } = await API.get(routeStopUrl[query.company])
-  stops.value = data.data
+  const { data } = await API.get<RouteStopResp>(routeStopUrl[query.company])
+  const stops = data.data
 
-  stops.value.forEach(async (item) => {
-    const { data: stopData } = await API.get(stopDetailsUrl(item.stop)[query.company])
-    const { data: etaData } = await API.get(etaUrl(item.stop)[query.company])
+  const promises = stops.map(async (item) => {
+    const { data: stopData } = await API.get<StopResp>(stopDetailsUrl(item.stop)[query.company])
+    const { data: etaData } = await API.get<EtaResp>(etaUrl(item.stop)[query.company])
 
-    item.stop_tc = stopData.data.name_tc
-    item.lat = stopData.data.lat
-    item.long = stopData.data.long
-    item.eta = etaData.data.filter((item) => item.dir === getDirection().code)
-    item.distance = haversine(currLocation, {
-      latitude: stopData.data.lat,
-      longitude: stopData.data.long,
-    })
+    return {
+      ...item,
+      stop_tc: stopData.data.name_tc,
+      lat: stopData.data.lat,
+      long: stopData.data.long,
+      eta: etaData.data.filter((item) => item.dir === getDirection().code),
+      distance: haversine(currLocation, {
+        latitude: Number(stopData.data.lat),
+        longitude: Number(stopData.data.long),
+      }),
+    }
   })
 
-  isPageLoading.value = false
+  Promise.all(promises).then((values) => {
+    displayStops.value = values
+    isPageLoading.value = false
+  })
 }
 
 const handleSwitchDirection = () => {

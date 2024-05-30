@@ -1,6 +1,11 @@
 import { ElMessage } from 'element-plus'
 
-export const getCurrentLocation = () => {
+interface GeoLocation {
+  latitude: number
+  longitude: number
+}
+
+export const getCurrentLocation = (): Promise<GeoLocation> => {
   return new Promise((resolve, reject) => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
