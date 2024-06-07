@@ -22,6 +22,12 @@
           </el-icon>
         </div>
 
+        <div class="footer-tab" @click="router.push('/plan-route')">
+          <el-icon :size="24" :color="getMenuColor('/plan-route')">
+            <Guide />
+          </el-icon>
+        </div>
+
         <div class="footer-tab" @click="router.push('/map')">
           <el-icon :size="24" :color="getMenuColor('/map')">
             <Location />
@@ -40,7 +46,7 @@
 
 <script lang="ts" setup>
 import { useRouter, useRoute } from 'vue-router'
-import { Location, Setting, Search, Star } from '@element-plus/icons-vue'
+import { Location, Setting, Search, Star, Guide } from '@element-plus/icons-vue'
 import { fetchBusData } from '@/services/BusService'
 
 const route = useRoute()
@@ -59,9 +65,9 @@ const getMenuColor = (path: string) => {
 //   return !tabPages.includes(route.name)
 // }
 
-onMounted(() => {
+onMounted(async () => {
   if (!localStorage.getItem('dbLastUpdateTime')) {
-    fetchBusData()
+    await fetchBusData()
   }
 })
 </script>

@@ -5,6 +5,7 @@
       size="large"
       placeholder="Search for a bus route"
       :prefix-icon="Search"
+      @focus="() => keyboardRef.open()"
     />
   </div>
 
@@ -33,6 +34,8 @@
       </div>
     </li>
   </ul>
+
+  <Keyboard ref="keyboardRef" @change="handleInput" :letter-keys="letterKeys" />
 </template>
 
 <script lang="ts" setup>
@@ -42,6 +45,7 @@ import { useRouter, useRoute } from 'vue-router'
 // import API from '@/services/ApiService'
 import { Search } from '@element-plus/icons-vue'
 
+const keyboardRef = ref()
 const scrollCount = ref(10)
 const searchInput = ref('')
 const displayRouteList = ref(JSON.parse(localStorage.getItem('routes') || '[]').slice(0, 10))
@@ -61,6 +65,20 @@ watch(
     }
   }
 )
+
+const letterKeys = computed(() => {
+  if (!searchInput.value) {
+    return []
+  }
+
+  return displayRouteList.value
+    .map((item) => {
+      const match = item.route.match(/[a-zA-Z]/g)
+      return match ? match[match.length - 1] : null
+    })
+    .filter((item, index, self) => item && self.indexOf(item) === index)
+    .sort()
+})
 
 const goToDetails = (routeItem, company) => {
   router.push({
@@ -89,6 +107,20 @@ const loadRoute = () => {
     )
     scrollCount.value += 10
   }
+}
+
+const handleInput = (val) => {
+  if (val === 'back') {
+    searchInput.value = searchInput.value.slice(0, -1)
+    return
+  }
+
+  if (val === 'reset') {
+    searchInput.value = ''
+    return
+  }
+
+  searchInput.value += val
 }
 </script>
 

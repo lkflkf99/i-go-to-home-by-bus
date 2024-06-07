@@ -4,9 +4,9 @@
 
 declare module 'vue' {
   export interface GlobalComponents {
-    HelloWorld: typeof import('./components/HelloWorld.vue')['default']
     IconTablerBus: typeof import('~icons/tabler/bus')['default']
     IconTablerBusStop: typeof import('~icons/tabler/bus-stop')['default']
+    Keyboard: typeof import('./components/Keyboard.vue')['default']
   }
 }
 
