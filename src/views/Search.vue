@@ -60,7 +60,7 @@ watch(
       displayRouteList.value = routeList.value.slice(0, 10)
     } else {
       displayRouteList.value = routeList.value.filter((item) =>
-        item.route.includes(value.toUpperCase())
+        item.route.startsWith(value.toUpperCase())
       )
     }
   }
