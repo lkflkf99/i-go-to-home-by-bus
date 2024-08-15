@@ -60,7 +60,7 @@ import haversine from 'haversine-distance'
 import { ElLoading } from 'element-plus'
 import { Switch, Refresh } from '@element-plus/icons-vue'
 import API from '@/services/ApiService'
-import { getCurrentLocation } from '@/utils'
+import { getCurrentLocation, isIOS } from '@/utils'
 import { formatDistanceToNow } from 'date-fns'
 import type { RouteStopResp, StopResp, EtaResp, RouteStop, Eta } from '@/model'
 
@@ -89,8 +89,10 @@ const handleStopClick = async (stop) => {
   })
   const currLocation = await getCurrentLocation()
   const url = `https://www.google.com/maps/dir/?api=1&origin=${currLocation.latitude},${currLocation.longitude}&destination=${stop.lat},${stop.long}`
+  const iosUrl = `comgooglemaps://?saddr=${currLocation.latitude},${currLocation.longitude}&daddr=${stop.lat},${stop.long}&directionsmode=walking`
+
+  window.location.href = isIOS() ? iosUrl : url
   loading.close()
-  window.location.href = url
 }
 
 const stopDetailsUrl = (stopId) => ({

@@ -22,7 +22,10 @@
           <p class="text-sm font-semibold text-gray-900">{{ item.co || 'KMB' }}</p>
         </div>
         <div class="min-w-0 flex-auto">
-          <p class="text-sm font-semibold text-gray-900">{{ item.route }}</p>
+          <p class="text-sm font-semibold text-gray-900">
+            {{ item.route }}
+            <span v-if="item.service_type > 1">(特別班次)</span>
+          </p>
           <p class="mt-1 truncate text-xs text-gray-500">{{ item.orig_tc }} - {{ item.dest_tc }}</p>
         </div>
       </div>
