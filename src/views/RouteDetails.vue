@@ -36,6 +36,14 @@
             <p class="mt-1 truncate text-xs leading-5 text-gray-500">
               Distance: {{ stop?.distance?.toFixed(2) }}M
             </p>
+            <el-button
+              class="mt-4"
+              round
+              v-if="stop.camData"
+              @click.stop="handleViewTrafficCamClick(stop.camData)"
+            >
+              traffic cam
+            </el-button>
           </div>
         </div>
         <div class="shrink-0 flex flex-col items-end">
@@ -50,6 +58,10 @@
         </div>
       </li>
     </ul>
+
+    <el-dialog v-model="dialog.visible" :title="dialog.title" width="500">
+      <img :src="dialog.imageUrl" />
+    </el-dialog>
   </div>
 </template>
 
@@ -63,6 +75,7 @@ import API from '@/services/ApiService'
 import { getCurrentLocation, isIOS } from '@/utils'
 import { formatDistanceToNow } from 'date-fns'
 import type { RouteStopResp, StopResp, EtaResp, RouteStop, Eta } from '@/model'
+import trafficCam from '@/assets/traffic_cam.json'
 
 interface DisplayStops extends RouteStop {
   stop_tc: string
@@ -70,12 +83,18 @@ interface DisplayStops extends RouteStop {
   long: string
   eta: Eta[]
   distance: number
+  camData?: object
 }
 
 const displayStops = ref<DisplayStops[]>([])
 const route = useRoute()
 const isPageLoading = ref(false)
 const isOutbound = ref(true)
+const dialog = ref({
+  visible: false,
+  title: '',
+  imageUrl: '',
+})
 
 const getDirection = () => {
   return isOutbound.value ? { name: 'outbound', code: 'O' } : { name: 'inbound', code: 'I' }
@@ -93,6 +112,14 @@ const handleStopClick = async (stop) => {
 
   window.location.href = isIOS() ? iosUrl : url
   loading.close()
+}
+
+const handleViewTrafficCamClick = (camData) => {
+  dialog.value = {
+    visible: true,
+    title: camData.description,
+    imageUrl: camData.url,
+  }
 }
 
 const stopDetailsUrl = (stopId) => ({
@@ -130,6 +157,20 @@ const fetchDetails = async () => {
     const { data: stopData } = await API.get<StopResp>(stopDetailsUrl(item.stop)[query.company])
     const { data: etaData } = await API.get<EtaResp>(etaUrl(item.stop)[query.company])
 
+    const cam = trafficCam.find(
+      (c) =>
+        haversine(
+          {
+            latitude: Number(c.latitude),
+            longitude: Number(c.longitude),
+          },
+          {
+            latitude: Number(stopData.data.lat),
+            longitude: Number(stopData.data.long),
+          }
+        ) <= 50
+    )
+
     return {
       ...item,
       stop_tc: stopData.data.name_tc,
@@ -140,6 +181,7 @@ const fetchDetails = async () => {
         latitude: Number(stopData.data.lat),
         longitude: Number(stopData.data.long),
       }),
+      camData: cam,
     }
   })
 
