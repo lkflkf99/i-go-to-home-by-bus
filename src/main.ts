@@ -10,6 +10,7 @@ import router from './router'
 import './assets/css/ress.css'
 import './assets/css/vendor.css'
 import 'element-plus/dist/index.css'
+import 'element-plus/theme-chalk/dark/css-vars.css'
 import './assets/sass/app.scss'
 
 const app = createApp(App)

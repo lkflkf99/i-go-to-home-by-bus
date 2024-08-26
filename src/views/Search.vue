@@ -134,7 +134,7 @@ const handleInput = (val) => {
   top: 60px;
   position: fixed;
   width: 100%;
-  background-color: #fff;
+  background-color: var(--el-bg-color);
   z-index: 1;
 }
 </style>

@@ -11,31 +11,31 @@
       <el-main><RouterView /></el-main>
       <el-footer class="flex justify-around footer-container">
         <div class="footer-tab" @click="router.push('/fav')">
-          <el-icon :size="24" :color="getMenuColor('/fav')">
+          <el-icon :size="24" :class="getMenuClass('/fav')">
             <Star />
           </el-icon>
         </div>
 
         <div class="footer-tab" @click="router.push('/route')">
-          <el-icon :size="24" :color="getMenuColor('/route')">
+          <el-icon :size="24" :class="getMenuClass('/route')">
             <Search />
           </el-icon>
         </div>
 
         <div class="footer-tab" @click="router.push('/plan-route')">
-          <el-icon :size="24" :color="getMenuColor('/plan-route')">
+          <el-icon :size="24" :class="getMenuClass('/plan-route')">
             <Guide />
           </el-icon>
         </div>
 
         <div class="footer-tab" @click="router.push('/map')">
-          <el-icon :size="24" :color="getMenuColor('/map')">
+          <el-icon :size="24" :class="getMenuClass('/map')">
             <Location />
           </el-icon>
         </div>
 
         <div class="footer-tab" @click="router.push('/setting')">
-          <el-icon :size="24" :color="getMenuColor('/setting')">
+          <el-icon :size="24" :class="getMenuClass('/setting')">
             <Setting />
           </el-icon>
         </div>
@@ -48,6 +48,9 @@
 import { useRouter, useRoute } from 'vue-router'
 import { Location, Setting, Search, Star, Guide } from '@element-plus/icons-vue'
 import { fetchBusData } from '@/services/BusService'
+import { loadTheme } from '@/utils'
+
+loadTheme()
 
 const route = useRoute()
 const router = useRouter()
@@ -56,8 +59,8 @@ const goBack = () => {
   router.back()
 }
 
-const getMenuColor = (path: string) => {
-  return route.path === path ? '#409eff' : null
+const getMenuClass = (path: string) => {
+  return route.path === path ? 'primary' : null
 }
 
 // const showBack = () => {

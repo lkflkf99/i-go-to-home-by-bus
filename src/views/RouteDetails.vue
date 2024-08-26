@@ -10,10 +10,10 @@
   </ul>
   <div v-else>
     <div class="flex">
-      <el-button round plain :icon="Switch" @click="handleSwitchDirection">
+      <el-button round plain type="primary" :icon="Switch" @click="handleSwitchDirection">
         Switch Direction
       </el-button>
-      <el-button round plain :icon="Refresh" @click="handleRefresh"> Refresh </el-button>
+      <el-button round plain type="primary" :icon="Refresh" @click="handleRefresh"> Refresh </el-button>
     </div>
     <ul class="divide-y divide-gray-100">
       <li
@@ -39,6 +39,8 @@
             <el-button
               class="mt-4"
               round
+              plain
+              type="primary"
               v-if="stop.camData"
               @click.stop="handleViewTrafficCamClick(stop.camData)"
             >

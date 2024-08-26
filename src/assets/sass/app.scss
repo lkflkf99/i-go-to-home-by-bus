@@ -44,6 +44,19 @@ html.dark {
     background-color: theme('colors.slate.400');
   }
 }
+html.blackPink {
+  --el-color-primary: #F79AAF;
+  --el-color-primary-light-3: #F58FB0;
+  --el-color-primary-light-5: #F384A1;
+  // --el-color-primary-light-7: #F17992;
+  // --el-color-primary-light-8: #EF6E83;
+  // --el-color-primary-light-9: #ED6374;
+  --el-color-primary-dark-2: #FFB3C7;
+
+  .text-gray-900 {
+    color: #fff;
+  }
+}
 
 // nprogress
 #nprogress {
@@ -63,4 +76,8 @@ html.dark {
 
 .el-message {
   width: 100%;
+}
+
+.el-icon.primary {
+  color: var(--el-color-primary);
 }
