@@ -1,5 +1,6 @@
 import haversine from 'haversine-distance'
 import API from '@/services/ApiService'
+import { CATALOG_TTL_MS, ETA_TTL_MS, cachedGet, invalidatePrefix } from '@/services/HttpCache'
 import type {
   BusRoute,
   Company,
@@ -20,7 +21,7 @@ export interface GeoLocation {
   longitude: number
 }
 
-interface ResolvedStop {
+export interface ResolvedStop {
   stop: string
   name_tc: string
   name_en: string
@@ -43,7 +44,6 @@ const NEARBY_STOP_M = 800
 const MAX_NEARBY_STOPS = 8
 const MAX_CTB_PLAN = 10
 
-const routeStopCache = new Map<string, ResolvedStop[]>()
 const stopDetailCache = new Map<string, Stop>()
 
 const directionMeta = {
@@ -66,6 +66,13 @@ const seedStopCache = () => {
   getCachedStops().forEach((stop) => {
     stopDetailCache.set(stop.stop, stop)
   })
+}
+
+export const resetCommuteCaches = () => {
+  stopDetailCache.clear()
+  invalidatePrefix('route-stop:')
+  invalidatePrefix('stop:')
+  invalidatePrefix('eta:')
 }
 
 const toPlace = (stop: Stop): SavedPlace => ({
@@ -144,33 +151,37 @@ const routeKeySafe = (route: BusRoute) => {
   return `${getCompany(route)}-${route.route}-${route.service_type || '1'}`
 }
 
-const resolveStop = async (company: Company, routeStop: RouteStop): Promise<ResolvedStop | null> => {
+const toResolvedStop = (stop: Stop, seq: number): ResolvedStop => ({
+  stop: stop.stop,
+  name_tc: stop.name_tc,
+  name_en: stop.name_en,
+  lat: stop.lat,
+  long: stop.long,
+  seq,
+  distance: Infinity,
+})
+
+const resolveStop = async (
+  company: Company,
+  routeStop: RouteStop
+): Promise<ResolvedStop | null> => {
   seedStopCache()
   const cached = stopDetailCache.get(routeStop.stop)
   if (cached) {
-    return {
-      stop: cached.stop,
-      name_tc: cached.name_tc,
-      name_en: cached.name_en,
-      lat: cached.lat,
-      long: cached.long,
-      seq: Number(routeStop.seq),
-      distance: Infinity,
-    }
+    return toResolvedStop(cached, Number(routeStop.seq))
   }
 
   try {
-    const { data } = await API.get<StopResp>(stopDetailsUrl(company, routeStop.stop))
-    stopDetailCache.set(routeStop.stop, data.data)
-    return {
-      stop: data.data.stop,
-      name_tc: data.data.name_tc,
-      name_en: data.data.name_en,
-      lat: data.data.lat,
-      long: data.data.long,
-      seq: Number(routeStop.seq),
-      distance: Infinity,
-    }
+    const stop = await cachedGet(
+      `stop:${routeStop.stop}`,
+      async () => {
+        const { data } = await API.get<StopResp>(stopDetailsUrl(company, routeStop.stop))
+        return data.data
+      },
+      { ttlMs: CATALOG_TTL_MS, persist: true }
+    )
+    stopDetailCache.set(routeStop.stop, stop)
+    return toResolvedStop(stop, Number(routeStop.seq))
   } catch {
     return null
   }
@@ -194,24 +205,26 @@ const fetchDirectionStops = async (
   location: GeoLocation | null
 ): Promise<ResolvedStop[]> => {
   const key = cacheKey(route, direction)
-  const cached = routeStopCache.get(key)
-  if (cached) {
-    return withDistance(cached, location)
-  }
-
   try {
-    const { data } = await API.get<RouteStopResp>(routeStopUrl(route, direction))
-    const company = getCompany(route)
-    const resolved = (
-      await Promise.all((data.data || []).map((item) => resolveStop(company, item)))
-    ).filter((item): item is ResolvedStop => !!item)
+    const resolved = await cachedGet(
+      `route-stop:${key}`,
+      async () => {
+        const { data } = await API.get<RouteStopResp>(routeStopUrl(route, direction))
+        const company = getCompany(route)
+        return (
+          await Promise.all((data.data || []).map((item) => resolveStop(company, item)))
+        ).filter((item): item is ResolvedStop => !!item)
+      },
+      { ttlMs: CATALOG_TTL_MS, persist: true }
+    )
 
-    routeStopCache.set(key, resolved)
     return withDistance(resolved, location)
   } catch {
     return []
   }
 }
+
+export const loadRouteStops = fetchDirectionStops
 
 const nearestStop = (stops: ResolvedStop[]) => {
   if (!stops.length) {
@@ -299,10 +312,114 @@ const upcomingEtas = (etas: Eta[], dirCode: 'I' | 'O') => {
     .map((item) => item.eta)
 }
 
-const fetchEtas = async (route: BusRoute, stopId: string, dirCode: 'I' | 'O') => {
+const sortEtas = (etas: Eta[]) => {
+  return [...etas].sort((a, b) => String(a.eta || '').localeCompare(String(b.eta || '')))
+}
+
+const etaCacheKey = (route: BusRoute, stopId: string) => {
+  return `eta:stop:${routeKeySafe(route)}:${stopId}`
+}
+
+const fetchEtaList = async (
+  route: BusRoute,
+  stopId: string,
+  options?: { force?: boolean }
+): Promise<Eta[]> => {
   try {
-    const { data } = await API.get<EtaResp>(etaUrl(route, stopId))
-    return upcomingEtas(data.data || [], dirCode)
+    return await cachedGet(
+      etaCacheKey(route, stopId),
+      async () => {
+        const { data } = await API.get<EtaResp>(etaUrl(route, stopId))
+        return data.data || []
+      },
+      { ttlMs: ETA_TTL_MS, persist: false, force: options?.force }
+    )
+  } catch {
+    return []
+  }
+}
+
+const fetchKmbRouteEtas = async (
+  route: BusRoute,
+  options?: { force?: boolean }
+): Promise<Eta[]> => {
+  try {
+    return await cachedGet(
+      `eta:route:${routeKeySafe(route)}`,
+      async () => {
+        const { data } = await API.get<EtaResp>(
+          `/kmb/route-eta/${route.route}/${route.service_type || 1}`
+        )
+        return data.data || []
+      },
+      { ttlMs: ETA_TTL_MS, persist: false, force: options?.force }
+    )
+  } catch {
+    return []
+  }
+}
+
+const fetchEtas = async (
+  route: BusRoute,
+  stopId: string,
+  dirCode: 'I' | 'O',
+  options?: { force?: boolean }
+) => {
+  const etas = await fetchEtaList(route, stopId, options)
+  return upcomingEtas(etas, dirCode)
+}
+
+export const loadRouteEtas = async (
+  route: BusRoute,
+  direction: 'inbound' | 'outbound',
+  stops: ResolvedStop[],
+  options?: { force?: boolean }
+): Promise<Map<number, Eta[]>> => {
+  const dirCode = direction === 'inbound' ? 'I' : 'O'
+  const grouped = new Map<number, Eta[]>()
+
+  if (getCompany(route) === 'KMB') {
+    const etas = await fetchKmbRouteEtas(route, options)
+    etas.forEach((eta) => {
+      if (eta.dir !== dirCode) {
+        return
+      }
+      const list = grouped.get(eta.seq) || []
+      list.push(eta)
+      grouped.set(eta.seq, list)
+    })
+    grouped.forEach((list, seq) => {
+      grouped.set(seq, sortEtas(list))
+    })
+    return grouped
+  }
+
+  const entries = await Promise.all(
+    stops.map(async (stop) => {
+      const etas = await fetchEtaList(route, stop.stop, options)
+      return [stop.seq, sortEtas(etas.filter((item) => item.dir === dirCode))] as const
+    })
+  )
+
+  entries.forEach(([seq, etas]) => {
+    grouped.set(seq, etas)
+  })
+  return grouped
+}
+
+export const fetchStopEtas = async (
+  stopId: string,
+  options?: { force?: boolean }
+): Promise<Eta[]> => {
+  try {
+    return await cachedGet(
+      `eta:stop-eta:${stopId}`,
+      async () => {
+        const { data } = await API.get<EtaResp>(`/kmb/stop-eta/${stopId}`)
+        return data.data || []
+      },
+      { ttlMs: ETA_TTL_MS, persist: false, force: options?.force }
+    )
   } catch {
     return []
   }
@@ -345,8 +462,7 @@ export const loadLiveFavorite = async (
   ])
   const servesPlace = !!(outbound.placeStop || inbound.placeStop)
   const leg = pickLeg([outbound, inbound], place)
-  const etas =
-    leg?.nearest ? await fetchEtas(route, leg.nearest.stop, leg.dirCode) : []
+  const etas = leg?.nearest ? await fetchEtas(route, leg.nearest.stop, leg.dirCode) : []
 
   return toLiveFavorite(route, leg, etas, servesPlace)
 }
@@ -356,7 +472,7 @@ export const refreshFavoriteEtas = async (item: LiveFavorite): Promise<LiveFavor
     return item
   }
   const dirCode = item.direction === 'inbound' ? 'I' : 'O'
-  const etas = await fetchEtas(item, item.nearestStopId, dirCode)
+  const etas = await fetchEtas(item, item.nearestStopId, dirCode, { force: true })
   return { ...item, etas }
 }
 
@@ -393,23 +509,19 @@ export const planRoutes = async (
   const nearbyNames = nearbyStops.map((stop) => stop.name_tc)
   const kmbResults = await Promise.all(
     nearbyStops.map(async (stop) => {
-      try {
-        const { data } = await API.get<EtaResp>(`/kmb/stop-eta/${stop.stop}`)
-        return (data.data || [])
-          .filter((eta) => {
-            return (
-              includesQuery(eta.dest_tc, query) ||
-              includesQuery(eta.dest_en, query) ||
-              includesQuery(eta.dest_sc, query)
-            )
-          })
-          .map((eta) => ({
-            eta,
-            stop,
-          }))
-      } catch {
-        return []
-      }
+      const etas = await fetchStopEtas(stop.stop)
+      return etas
+        .filter((eta) => {
+          return (
+            includesQuery(eta.dest_tc, query) ||
+            includesQuery(eta.dest_en, query) ||
+            includesQuery(eta.dest_sc, query)
+          )
+        })
+        .map((eta) => ({
+          eta,
+          stop,
+        }))
     })
   )
 
@@ -451,57 +563,59 @@ export const planRoutes = async (
 
   planned.forEach((item) => {
     const dirCode = item.direction === 'inbound' ? 'I' : 'O'
-    item.etas = upcomingEtas(etasByBoard.get(`${item.boardStopId}-${item.route}-${dirCode}`) || [], dirCode)
+    item.etas = upcomingEtas(
+      etasByBoard.get(`${item.boardStopId}-${item.route}-${dirCode}`) || [],
+      dirCode
+    )
   })
 
   let ctbRoutes: BusRoute[] = []
   try {
     ctbRoutes = JSON.parse(localStorage.getItem('routes') || '[]').filter(
-      (route: BusRoute) => getCompany(route) === 'CTB'
+      (item: BusRoute) => getCompany(item) === 'CTB'
     )
   } catch {
     ctbRoutes = []
   }
 
   const ctbMatches = ctbRoutes
-    .filter((route) => {
+    .filter((item) => {
       const destMatch =
-        includesQuery(route.dest_tc, query) ||
-        includesQuery(route.dest_en, query) ||
-        includesQuery(route.orig_tc, query) ||
-        includesQuery(route.orig_en, query)
-      const origNear = nearbyNames.some((name) => namesOverlap(name, route.orig_tc || ''))
+        includesQuery(item.dest_tc, query) ||
+        includesQuery(item.dest_en, query) ||
+        includesQuery(item.orig_tc, query) ||
+        includesQuery(item.orig_en, query)
+      const origNear = nearbyNames.some((name) => namesOverlap(name, item.orig_tc || ''))
       return destMatch && origNear
     })
     .slice(0, MAX_CTB_PLAN)
 
   await Promise.all(
-    ctbMatches.map(async (route) => {
-      const destIsOrig =
-        includesQuery(route.orig_tc, query) || includesQuery(route.orig_en, query)
+    ctbMatches.map(async (item) => {
+      const destIsOrig = includesQuery(item.orig_tc, query) || includesQuery(item.orig_en, query)
       const direction = destIsOrig ? 'inbound' : 'outbound'
-      const stops = await fetchDirectionStops(route, direction, location)
+      const stops = await fetchDirectionStops(item, direction, location)
       const board = nearestStop(stops)
       if (!board || board.distance > NEARBY_STOP_M) {
         return
       }
 
-      const dest = direction === 'inbound' ? route.orig_tc : route.dest_tc
-      const destEn = direction === 'inbound' ? route.orig_en : route.dest_en
-      const key = `CTB-${route.route}-${dest}`
+      const dest = direction === 'inbound' ? item.orig_tc : item.dest_tc
+      const destEn = direction === 'inbound' ? item.orig_en : item.dest_en
+      const key = `CTB-${item.route}-${dest}`
       if (planned.has(key)) {
         return
       }
 
-      const etas = await fetchEtas(route, board.stop, direction === 'inbound' ? 'I' : 'O')
+      const etas = await fetchEtas(item, board.stop, direction === 'inbound' ? 'I' : 'O')
       planned.set(key, {
-        route: route.route,
-        service_type: route.service_type || 1,
+        route: item.route,
+        service_type: item.service_type || 1,
         co: 'CTB',
         dest_tc: dest,
         dest_en: destEn,
-        orig_tc: direction === 'inbound' ? route.dest_tc : route.orig_tc,
-        orig_en: direction === 'inbound' ? route.dest_en : route.orig_en,
+        orig_tc: direction === 'inbound' ? item.dest_tc : item.orig_tc,
+        orig_en: direction === 'inbound' ? item.dest_en : item.orig_en,
         boardStopName: board.name_tc,
         boardStopNameEn: board.name_en,
         boardStopId: board.stop,

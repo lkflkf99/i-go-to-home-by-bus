@@ -68,6 +68,7 @@ const destQuery = ref('')
 const isLoading = ref(false)
 const errorMessage = ref('')
 const results = ref<PlannedRoute[]>([])
+let searchGen = 0
 
 const originLabel = computed(() =>
   prefs.locationEnabled ? t('plan.usingLocation') : t('plan.locationOff')
@@ -87,9 +88,11 @@ const goToDetails = (item: PlannedRoute) => {
 
 const search = async (query: string) => {
   const dest = query.trim()
+  const gen = ++searchGen
   if (!dest) {
     results.value = []
     errorMessage.value = ''
+    isLoading.value = false
     return
   }
 
@@ -97,6 +100,9 @@ const search = async (query: string) => {
   errorMessage.value = ''
 
   const location = await getCurrentLocationOrNull()
+  if (gen !== searchGen) {
+    return
+  }
   if (!location) {
     errorMessage.value = t('plan.locationOff')
     results.value = []
@@ -104,8 +110,12 @@ const search = async (query: string) => {
     return
   }
 
-  results.value = await planRoutes(location, dest)
+  const nextResults = await planRoutes(location, dest)
+  if (gen !== searchGen) {
+    return
+  }
 
+  results.value = nextResults
   isLoading.value = false
 }
 

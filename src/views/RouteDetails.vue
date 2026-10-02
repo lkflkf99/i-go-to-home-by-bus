@@ -9,7 +9,16 @@
       <el-button round plain type="primary" :icon="Switch" @click="handleSwitchDirection">
         {{ t('details.switch') }}
       </el-button>
-      <el-button round plain type="primary" :icon="Refresh" @click="handleRefresh">{{ t('details.refresh') }}</el-button>
+      <el-button
+        round
+        plain
+        type="primary"
+        :icon="Refresh"
+        :loading="isRefreshing"
+        @click="handleRefresh"
+      >
+        {{ t('details.refresh') }}
+      </el-button>
     </div>
     <ul class="settings-group">
       <li
@@ -22,11 +31,15 @@
           <div class="min-w-0 flex-auto">
             <p
               class="text-sm font-semibold"
-              :style="{ color: stop?.distance <= 200 ? 'var(--el-color-primary)' : 'var(--app-text)' }"
+              :style="{
+                color: stop?.distance <= 200 ? 'var(--el-color-primary)' : 'var(--app-text)',
+              }"
             >
               {{ textByLocale(stop.stop_tc, stop.stop_en) }}
             </p>
-            <p v-if="formatMeters(stop?.distance)" class="route-meta">{{ formatMeters(stop?.distance) }}</p>
+            <p v-if="formatMeters(stop?.distance)" class="route-meta">
+              {{ formatMeters(stop?.distance) }}
+            </p>
             <el-button
               class="mt-2"
               round
@@ -42,7 +55,7 @@
         </div>
         <div class="eta-stack">
           <p
-            v-for="(stopEta, etaIndex) in stop.eta"
+            v-for="(stopEta, etaIndex) in stop.eta.length ? stop.eta : [{ eta: null }]"
             :key="etaIndex"
             :class="etaIndex === 0 ? 'eta-primary' : 'eta-secondary'"
           >
@@ -63,20 +76,30 @@ import { useRoute } from 'vue-router'
 import haversine from 'haversine-distance'
 import { ElLoading } from 'element-plus'
 import { Switch, Refresh } from '@element-plus/icons-vue'
-import API from '@/services/ApiService'
 import { getCurrentLocationOrNull, isIOS, formatEta, formatMeters, textByLocale } from '@/utils'
 import { usePrefsStore } from '@/stores/prefs'
-import type { RouteStopResp, StopResp, EtaResp, RouteStop, Eta } from '@/model'
+import { loadRouteEtas, loadRouteStops } from '@/services/CommuteService'
+import type { GeoLocation, ResolvedStop } from '@/services/CommuteService'
+import type { BusRoute, Eta } from '@/model'
 import trafficCam from '@/assets/traffic_cam.json'
 
-interface DisplayStops extends RouteStop {
+interface TrafficCam {
+  description: string
+  url: string
+  latitude: number
+  longitude: number
+}
+
+interface DisplayStops {
+  stop: string
+  seq: number
   stop_tc: string
   stop_en: string
   lat: string
   long: string
   eta: Eta[]
   distance: number
-  camData?: object
+  camData?: TrafficCam
 }
 
 const { t } = useI18n()
@@ -84,6 +107,7 @@ const prefs = usePrefsStore()
 const displayStops = ref<DisplayStops[]>([])
 const route = useRoute()
 const isPageLoading = ref(false)
+const isRefreshing = ref(false)
 const isOutbound = ref(route.query.direction !== 'inbound')
 const dialog = ref({
   visible: false,
@@ -92,10 +116,67 @@ const dialog = ref({
 })
 
 const getDirection = () => {
-  return isOutbound.value ? { name: 'outbound', code: 'O' } : { name: 'inbound', code: 'I' }
+  return isOutbound.value ? ('outbound' as const) : ('inbound' as const)
 }
 
-const handleStopClick = async (stop) => {
+const routeFromQuery = (): BusRoute | null => {
+  const { query } = route
+  const company = query.company === 'CTB' ? 'CTB' : query.company === 'KMB' ? 'KMB' : null
+  if (!company || !query.route) {
+    return null
+  }
+
+  return {
+    route: String(query.route),
+    service_type: String(query.serviceType || 1),
+    co: company,
+    orig_tc: '',
+    dest_tc: '',
+  }
+}
+
+const findCam = (lat: string, long: string) => {
+  return (trafficCam as TrafficCam[]).find(
+    (cam) =>
+      haversine(
+        { latitude: Number(cam.latitude), longitude: Number(cam.longitude) },
+        { latitude: Number(lat), longitude: Number(long) }
+      ) <= 50
+  )
+}
+
+const toDisplayStop = (stop: ResolvedStop, eta: Eta[] = []): DisplayStops => ({
+  stop: stop.stop,
+  seq: stop.seq,
+  stop_tc: stop.name_tc,
+  stop_en: stop.name_en,
+  lat: stop.lat,
+  long: stop.long,
+  eta,
+  distance: Number.isFinite(stop.distance) ? stop.distance : Number.NaN,
+  camData: findCam(stop.lat, stop.long),
+})
+
+const applyDistances = (stops: DisplayStops[], location: GeoLocation | null) => {
+  return stops.map((stop) => ({
+    ...stop,
+    distance: location
+      ? haversine(location, {
+          latitude: Number(stop.lat),
+          longitude: Number(stop.long),
+        })
+      : Number.NaN,
+  }))
+}
+
+const applyEtas = (stops: DisplayStops[], etaBySeq: Map<number, Eta[]>) => {
+  return stops.map((stop) => ({
+    ...stop,
+    eta: etaBySeq.get(stop.seq) || [],
+  }))
+}
+
+const handleStopClick = async (stop: DisplayStops) => {
   const loading = ElLoading.service({
     lock: true,
     text: t('details.openingMaps'),
@@ -114,7 +195,10 @@ const handleStopClick = async (stop) => {
   loading.close()
 }
 
-const handleViewTrafficCamClick = (camData) => {
+const handleViewTrafficCamClick = (camData?: TrafficCam) => {
+  if (!camData) {
+    return
+  }
   dialog.value = {
     visible: true,
     title: camData.description,
@@ -122,77 +206,49 @@ const handleViewTrafficCamClick = (camData) => {
   }
 }
 
-const stopDetailsUrl = (stopId) => ({
-  KMB: `/kmb/stop/${stopId}`,
-  CTB: `/ctb/stop/${stopId}`,
-})
+const refreshEtas = async (force = false) => {
+  const busRoute = routeFromQuery()
+  if (!busRoute || !displayStops.value.length) {
+    return
+  }
 
-const etaUrl = (stopId) => {
-  const { query } = route
-  return {
-    KMB: `/kmb/eta/${stopId}/${query.route}/${query.serviceType}`,
-    CTB: `/ctb/eta/CTB/${stopId}/${query.route}`,
+  isRefreshing.value = force
+  try {
+    const etaBySeq = await loadRouteEtas(
+      busRoute,
+      getDirection(),
+      displayStops.value.map((stop) => ({
+        stop: stop.stop,
+        name_tc: stop.stop_tc,
+        name_en: stop.stop_en,
+        lat: stop.lat,
+        long: stop.long,
+        seq: stop.seq,
+        distance: stop.distance,
+      })),
+      { force }
+    )
+    displayStops.value = applyEtas(displayStops.value, etaBySeq)
+  } finally {
+    isRefreshing.value = false
   }
 }
 
 const fetchDetails = async () => {
-  const { query } = route
-  const company = query.company === 'CTB' ? 'CTB' : query.company === 'KMB' ? 'KMB' : null
-
-  if (!company) {
+  const busRoute = routeFromQuery()
+  if (!busRoute) {
     return
   }
 
   isPageLoading.value = true
-  const currLocation = await getCurrentLocationOrNull()
-
-  const routeStopUrl = {
-    KMB: `/kmb/route-stop/${query.route}/${getDirection().name}/${query.serviceType}`,
-    CTB: `/ctb/route-stop/CTB/${query.route}/${getDirection().name}`,
-  }
-
-  const { data } = await API.get<RouteStopResp>(routeStopUrl[company])
-  const stops = data.data
-
-  const promises = stops.map(async (item) => {
-    const { data: stopData } = await API.get<StopResp>(stopDetailsUrl(item.stop)[company])
-    const { data: etaData } = await API.get<EtaResp>(etaUrl(item.stop)[company])
-
-    const cam = trafficCam.find(
-      (c) =>
-        haversine(
-          {
-            latitude: Number(c.latitude),
-            longitude: Number(c.longitude),
-          },
-          {
-            latitude: Number(stopData.data.lat),
-            longitude: Number(stopData.data.long),
-          }
-        ) <= 50
-    )
-
-    return {
-      ...item,
-      stop_tc: stopData.data.name_tc,
-      stop_en: stopData.data.name_en,
-      lat: stopData.data.lat,
-      long: stopData.data.long,
-      eta: etaData.data.filter((item) => item.dir === getDirection().code),
-      distance: currLocation
-        ? haversine(currLocation, {
-            latitude: Number(stopData.data.lat),
-            longitude: Number(stopData.data.long),
-          })
-        : Number.NaN,
-      camData: cam,
-    }
-  })
-
-  Promise.all(promises).then((values) => {
-    displayStops.value = values
+  try {
+    const currLocation = await getCurrentLocationOrNull()
+    const stops = await loadRouteStops(busRoute, getDirection(), currLocation)
+    displayStops.value = stops.map((stop) => toDisplayStop(stop))
+  } finally {
     isPageLoading.value = false
-  })
+  }
+  await refreshEtas(false)
 }
 
 const handleSwitchDirection = () => {
@@ -201,7 +257,7 @@ const handleSwitchDirection = () => {
 }
 
 const handleRefresh = () => {
-  fetchDetails()
+  refreshEtas(true)
 }
 
 onMounted(() => {
@@ -210,8 +266,12 @@ onMounted(() => {
 
 watch(
   () => prefs.locationEnabled,
-  () => {
-    fetchDetails()
+  async () => {
+    if (!displayStops.value.length) {
+      return
+    }
+    const currLocation = await getCurrentLocationOrNull()
+    displayStops.value = applyDistances(displayStops.value, currLocation)
   }
 )
 </script>

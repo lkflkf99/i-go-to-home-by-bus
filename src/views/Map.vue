@@ -58,7 +58,7 @@
 import { getCurrentLocation, formatEta, textByLocale } from '@/utils'
 import haversine from 'haversine-distance'
 import { GoogleMap, Marker, Circle } from 'vue3-google-map'
-import API from '@/services/ApiService'
+import { fetchStopEtas } from '@/services/CommuteService'
 import { useRouter } from 'vue-router'
 import { usePrefsStore } from '@/stores/prefs'
 
@@ -134,12 +134,12 @@ onMounted(() => {
 })
 
 const openStopDetails = async (item) => {
-  const { data } = await API.get(`/kmb/stop-eta/${item.stop}`)
+  const routes = await fetchStopEtas(item.stop)
 
   dialog.value = {
     title: textByLocale(item.name_tc, item.name_en),
     visible: true,
-    routes: data.data,
+    routes,
   }
 }
 

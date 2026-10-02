@@ -38,7 +38,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ArrowLeft, Location, Setting, Search, Star, Guide } from '@element-plus/icons-vue'
 import en from 'element-plus/es/locale/lang/en'
 import zhTw from 'element-plus/es/locale/lang/zh-tw'
-import { fetchBusData } from '@/services/BusService'
+import { fetchBusData, isCatalogStale } from '@/services/BusService'
 import { loadTheme } from '@/utils'
 import { usePrefsStore } from '@/stores/prefs'
 
@@ -100,8 +100,15 @@ watch(
 )
 
 onMounted(async () => {
-  if (!localStorage.getItem('dbLastUpdateTime')) {
-    await fetchBusData()
+  if (!isCatalogStale()) {
+    return
   }
+
+  if (localStorage.getItem('dbLastUpdateTime')) {
+    fetchBusData()
+    return
+  }
+
+  await fetchBusData()
 })
 </script>

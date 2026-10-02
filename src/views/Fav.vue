@@ -198,8 +198,10 @@ watch(
   }
 )
 
+const visibility = useDocumentVisibility()
+
 useIntervalFn(() => {
-  if (!store.favRoutes.length || isPageLoading.value) {
+  if (visibility.value !== 'visible' || !store.favRoutes.length || isPageLoading.value) {
     return
   }
   handleRefresh()
