@@ -28,3 +28,16 @@ export const getCurrentLocation = (): Promise<GeoLocation> => {
     }
   })
 }
+
+export const getCurrentLocationOrNull = async (timeoutMs = 4000): Promise<GeoLocation | null> => {
+  try {
+    return await Promise.race([
+      getCurrentLocation(),
+      new Promise<GeoLocation>((_, reject) => {
+        setTimeout(() => reject(new Error('Location timeout')), timeoutMs)
+      }),
+    ])
+  } catch {
+    return null
+  }
+}

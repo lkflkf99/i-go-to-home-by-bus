@@ -39,6 +39,50 @@ export interface Eta {
   data_timestamp: string
 }
 
+export type Company = 'KMB' | 'CTB'
+
+export interface BusRoute {
+  route: string
+  orig_tc: string
+  dest_tc: string
+  orig_en?: string
+  dest_en?: string
+  service_type?: string | number
+  bound?: string
+  co?: Company | string
+}
+
+export interface SavedPlace {
+  stop: string
+  name_tc: string
+  name_en: string
+  lat: string
+  long: string
+}
+
+export interface LiveFavorite extends BusRoute {
+  co: Company
+  nearestStopName: string
+  nearestStopId: string
+  nearestDistance: number | null
+  direction: 'inbound' | 'outbound'
+  etas: Array<string | null>
+  servesPlace: boolean
+}
+
+export interface PlannedRoute {
+  route: string
+  service_type: string | number
+  co: Company
+  dest_tc: string
+  orig_tc: string
+  boardStopName: string
+  boardStopId: string
+  walkDistance: number | null
+  direction: 'inbound' | 'outbound'
+  etas: Array<string | null>
+}
+
 export type RouteStopResp = BusResponseBase<RouteStop[]>
 export type StopResp = BusResponseBase<Stop>
 export type EtaResp = BusResponseBase<Eta[]>

@@ -11,6 +11,26 @@
         </div>
       </div>
     </li>
+    <li class="flex justify-between gap-x-6 py-5" @click="homePickerVisible = true">
+      <div class="flex min-w-0 gap-x-4">
+        <div class="min-w-0 flex-auto">
+          <p class="text-sm font-semibold text-gray-900">Home</p>
+          <p class="mt-1 truncate text-xs text-gray-500">
+            {{ store.homePlace ? store.homePlace.name_tc : 'Not set' }}
+          </p>
+        </div>
+      </div>
+    </li>
+    <li class="flex justify-between gap-x-6 py-5" @click="workPickerVisible = true">
+      <div class="flex min-w-0 gap-x-4">
+        <div class="min-w-0 flex-auto">
+          <p class="text-sm font-semibold text-gray-900">Work</p>
+          <p class="mt-1 truncate text-xs text-gray-500">
+            {{ store.workPlace ? store.workPlace.name_tc : 'Not set' }}
+          </p>
+        </div>
+      </div>
+    </li>
     <li class="flex justify-between gap-x-6 py-5" @click="dialog.visible = true">
       <div class="flex min-w-0 gap-x-4">
         <div class="min-w-0 flex-auto">
@@ -32,6 +52,20 @@
       </div>
     </template>
   </el-dialog>
+  <PlacePicker
+    v-model:visible="homePickerVisible"
+    :model-value="store.homePlace"
+    title="Set home stop"
+    placeholder="Search a stop name"
+    @select="store.setHome"
+  />
+  <PlacePicker
+    v-model:visible="workPickerVisible"
+    :model-value="store.workPlace"
+    title="Set work stop"
+    placeholder="Search a stop name"
+    @select="store.setWork"
+  />
 </template>
 
 <script lang="ts" setup>
@@ -39,9 +73,14 @@ import { ref } from 'vue'
 import { format } from 'date-fns'
 import { fetchBusData } from '@/services/BusService'
 import { toggleDark, isDark } from '@/composables'
+import { useCommuteStore } from '@/stores/commute'
+import PlacePicker from '@/components/PlacePicker.vue'
 
+const store = useCommuteStore()
 const isFetching = ref(false)
 const lastUpdateTime = ref(localStorage.getItem('dbLastUpdateTime'))
+const homePickerVisible = ref(false)
+const workPickerVisible = ref(false)
 const dialog = ref({
   title: 'Select Theme',
   visible: false,

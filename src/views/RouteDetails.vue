@@ -91,7 +91,7 @@ interface DisplayStops extends RouteStop {
 const displayStops = ref<DisplayStops[]>([])
 const route = useRoute()
 const isPageLoading = ref(false)
-const isOutbound = ref(true)
+const isOutbound = ref(route.query.direction !== 'inbound')
 const dialog = ref({
   visible: false,
   title: '',

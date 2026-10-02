@@ -30,8 +30,8 @@
         </div>
       </div>
       <div class="shrink-0 sm:flex sm:flex-col sm:items-end">
-        <el-icon :size="24" color="#ffcc00" @click.stop="() => toggleFav(item)">
-          <StarFilled v-if="isFav(item)" />
+        <el-icon :size="24" color="#ffcc00" @click.stop="() => commuteStore.toggleFav(item)">
+          <StarFilled v-if="commuteStore.isFav(item)" />
           <Star v-else />
         </el-icon>
       </div>
@@ -44,9 +44,10 @@
 <script lang="ts" setup>
 import { ref } from 'vue'
 import { Star, StarFilled } from '@element-plus/icons-vue'
-import { useRouter, useRoute } from 'vue-router'
-// import API from '@/services/ApiService'
+import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
+import { useCommuteStore } from '@/stores/commute'
+import { getCompany } from '@/utils'
 
 const keyboardRef = ref()
 const scrollCount = ref(10)
@@ -54,7 +55,7 @@ const searchInput = ref('')
 const displayRouteList = ref(JSON.parse(localStorage.getItem('routes') || '[]').slice(0, 10))
 const routeList = ref(JSON.parse(localStorage.getItem('routes') || '[]'))
 const router = useRouter()
-const favRoutes = ref(JSON.parse(localStorage.getItem('favRoutes') || '[]'))
+const commuteStore = useCommuteStore()
 
 watch(
   () => searchInput.value,
@@ -86,21 +87,8 @@ const letterKeys = computed(() => {
 const goToDetails = (routeItem, company) => {
   router.push({
     name: 'Bus Stops',
-    query: { route: routeItem.route, serviceType: routeItem.service_type, company },
+    query: { route: routeItem.route, serviceType: routeItem.service_type, company: company || getCompany(routeItem) },
   })
-}
-
-const toggleFav = (route) => {
-  if (isFav(route)) {
-    favRoutes.value = favRoutes.value.filter((item) => item.route !== route.route)
-  } else {
-    favRoutes.value = favRoutes.value.concat(route)
-  }
-  localStorage.setItem('favRoutes', JSON.stringify(favRoutes.value))
-}
-
-const isFav = (route) => {
-  return favRoutes.value.some((item) => item.route === route.route)
 }
 
 const loadRoute = () => {
