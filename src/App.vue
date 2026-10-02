@@ -63,11 +63,6 @@ const getMenuClass = (path: string) => {
   return route.path === path ? 'primary' : null
 }
 
-// const showBack = () => {
-//   const tabPages = ['Fav', 'Bus Routes', 'Setting']
-//   return !tabPages.includes(route.name)
-// }
-
 onMounted(async () => {
   if (!localStorage.getItem('dbLastUpdateTime')) {
     await fetchBusData()

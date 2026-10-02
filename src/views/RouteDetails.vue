@@ -68,7 +68,6 @@
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue'
 import { useRoute } from 'vue-router'
 import haversine from 'haversine-distance'
 import { ElLoading } from 'element-plus'
@@ -206,12 +205,3 @@ onMounted(() => {
   fetchDetails()
 })
 </script>
-
-<style scoped>
-.search-input {
-  top: 60px;
-  position: fixed;
-  width: calc(100% - 38px);
-  background-color: #fff;
-}
-</style>

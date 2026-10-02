@@ -42,10 +42,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue'
-import { Star, StarFilled } from '@element-plus/icons-vue'
-import { useRouter } from 'vue-router'
-import { Search } from '@element-plus/icons-vue'
+import { Search, Star, StarFilled } from '@element-plus/icons-vue'
 import { useCommuteStore } from '@/stores/commute'
 import { getCompany } from '@/utils'
 

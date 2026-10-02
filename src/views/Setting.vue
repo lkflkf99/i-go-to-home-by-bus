@@ -69,7 +69,6 @@
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue'
 import { format } from 'date-fns'
 import { fetchBusData } from '@/services/BusService'
 import { toggleDark, isDark } from '@/composables'
