@@ -1,9 +1,10 @@
 [build.environment]
   NODE_VERSION = "22"
+  YARN_IGNORE_ENGINES = "true"
 
 [build]
   publish = "dist"
-  command = "yarn install --frozen-lockfile && yarn build"
+  command = "yarn install --frozen-lockfile --ignore-engines && yarn build"
 
 [[redirects]]
   from = "/api/ctb/*"
