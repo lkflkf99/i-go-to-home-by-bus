@@ -1,9 +1,9 @@
 [build.environment]
-  NODE_VERSION = "16"
+  NODE_VERSION = "22"
 
 [build]
   publish = "dist"
-  command = "npm ci --include=dev && npm run build"
+  command = "yarn install --frozen-lockfile && yarn build"
 
 [[redirects]]
   from = "/api/ctb/*"
