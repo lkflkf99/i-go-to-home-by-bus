@@ -1,46 +1,34 @@
 <template>
-  <ul class="divide-y divide-gray-100">
-    <li class="flex justify-between gap-x-6 py-5" v-loading="isFetching" @click="handleUpdateDB">
-      <div class="flex min-w-0 gap-x-4">
-        <div class="min-w-0 flex-auto">
-          <p class="text-sm font-semibold text-gray-900">Update Local DB</p>
-          <p class="mt-1 truncate text-xs text-gray-500">
-            Last Updated Time:
-            {{ lastUpdateTime ? format(lastUpdateTime, 'dd-MM-yyyy HH:mm') : '-' }}
-          </p>
-        </div>
+  <ul class="settings-group">
+    <li class="settings-row" v-loading="isFetching" @click="handleUpdateDB">
+      <div class="min-w-0 flex-auto">
+        <p class="text-sm font-semibold" style="color: var(--app-text)">Update Local DB</p>
+        <p class="route-meta">
+          Last updated:
+          {{ lastUpdateTime ? format(lastUpdateTime, 'dd MMM yyyy HH:mm') : '-' }}
+        </p>
       </div>
     </li>
-    <li class="flex justify-between gap-x-6 py-5" @click="homePickerVisible = true">
-      <div class="flex min-w-0 gap-x-4">
-        <div class="min-w-0 flex-auto">
-          <p class="text-sm font-semibold text-gray-900">Home</p>
-          <p class="mt-1 truncate text-xs text-gray-500">
-            {{ store.homePlace ? store.homePlace.name_tc : 'Not set' }}
-          </p>
-        </div>
+    <li class="settings-row" @click="homePickerVisible = true">
+      <div class="min-w-0 flex-auto">
+        <p class="text-sm font-semibold" style="color: var(--app-text)">Home</p>
+        <p class="route-meta">{{ store.homePlace ? store.homePlace.name_tc : 'Not set' }}</p>
       </div>
     </li>
-    <li class="flex justify-between gap-x-6 py-5" @click="workPickerVisible = true">
-      <div class="flex min-w-0 gap-x-4">
-        <div class="min-w-0 flex-auto">
-          <p class="text-sm font-semibold text-gray-900">Work</p>
-          <p class="mt-1 truncate text-xs text-gray-500">
-            {{ store.workPlace ? store.workPlace.name_tc : 'Not set' }}
-          </p>
-        </div>
+    <li class="settings-row" @click="workPickerVisible = true">
+      <div class="min-w-0 flex-auto">
+        <p class="text-sm font-semibold" style="color: var(--app-text)">Work</p>
+        <p class="route-meta">{{ store.workPlace ? store.workPlace.name_tc : 'Not set' }}</p>
       </div>
     </li>
-    <li class="flex justify-between gap-x-6 py-5" @click="dialog.visible = true">
-      <div class="flex min-w-0 gap-x-4">
-        <div class="min-w-0 flex-auto">
-          <p class="text-sm font-semibold text-gray-900">Theme</p>
-          <p class="mt-1 truncate text-xs text-gray-500">{{ dialog.model }}</p>
-        </div>
+    <li class="settings-row" @click="dialog.visible = true">
+      <div class="min-w-0 flex-auto">
+        <p class="text-sm font-semibold" style="color: var(--app-text)">Theme</p>
+        <p class="route-meta">{{ dialog.model }}</p>
       </div>
     </li>
   </ul>
-  <el-dialog v-model="dialog.visible" :title="dialog.title" width="80%">
+  <el-dialog v-model="dialog.visible" :title="dialog.title" width="90%">
     <el-radio-group v-model="dialog.model">
       <el-radio value="default">Default</el-radio>
       <el-radio value="blackPink">Black Pink</el-radio>
@@ -114,5 +102,3 @@ const handleChangeTheme = () => {
   root.classList.add(dialog.value.model)
 }
 </script>
-
-<style scoped></style>

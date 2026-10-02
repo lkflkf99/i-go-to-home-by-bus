@@ -10,7 +10,7 @@ const router = createRouter({
     },
     {
       path: '/route',
-      name: 'Bus Routes',
+      name: 'Search',
       component: () => import('../views/Search.vue'),
     },
     {
@@ -20,17 +20,17 @@ const router = createRouter({
     },
     {
       path: '/plan-route',
-      name: 'Plan Route',
+      name: 'Plan',
       component: () => import('../views/RoutePlanning.vue'),
     },
     {
       path: '/fav',
-      name: 'Favorite',
+      name: 'Favorites',
       component: () => import('../views/Fav.vue'),
     },
     {
       path: '/setting',
-      name: 'Setting',
+      name: 'Settings',
       component: () => import('../views/Setting.vue'),
     },
     {

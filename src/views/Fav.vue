@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div class="flex flex-wrap gap-2">
+    <div class="action-row">
       <el-button
         round
         plain
@@ -24,59 +24,55 @@
       </el-button>
     </div>
 
-    <p v-if="filterBanner" class="mt-3 text-xs text-gray-500">{{ filterBanner }}</p>
+    <p v-if="filterBanner" class="filter-banner">{{ filterBanner }}</p>
 
-    <p v-if="!store.favRoutes.length" class="mt-8 text-sm text-gray-500">
+    <p v-if="!store.favRoutes.length" class="empty-state">
       Star routes from Search to see live arrivals here.
     </p>
 
-    <ul class="divide-y divide-gray-100" v-else-if="isPageLoading">
-      <li class="py-5" v-for="index in store.favRoutes.length || 3" :key="index">
+    <ul class="settings-group" v-else-if="isPageLoading">
+      <li class="route-row" v-for="index in store.favRoutes.length || 3" :key="index">
         <el-skeleton :rows="2" animated />
       </li>
     </ul>
 
-    <ul class="divide-y divide-gray-100" v-else>
+    <ul class="settings-group" v-else>
       <li
-        class="flex justify-between gap-x-6 py-5"
+        class="route-row"
         v-for="item in visibleFavorites"
         :key="`${item.co}-${item.route}-${item.service_type}-${item.direction}`"
         @click="goToDetails(item)"
       >
-        <div class="flex min-w-0 gap-x-4">
-          <div class="rounded-ful">
-            <IconTablerBus class="h-6 w-6" />
-            <p class="text-sm font-semibold text-gray-900">{{ item.co }}</p>
-          </div>
+        <div class="flex min-w-0 gap-x-3">
+          <div class="route-badge">{{ item.co }}</div>
           <div class="min-w-0 flex-auto">
-            <p class="text-sm font-semibold leading-6 text-gray-900">{{ item.route }}</p>
-            <p class="mt-1 truncate text-xs leading-5 text-gray-500">
-              {{ item.orig_tc }} - {{ item.dest_tc }}
-            </p>
-            <p class="mt-1 truncate text-xs leading-5 text-gray-500">
+            <p class="route-number">{{ item.route }}</p>
+            <p class="route-meta">{{ item.orig_tc }} - {{ item.dest_tc }}</p>
+            <p class="route-meta">
               {{ item.nearestStopName }}
-              <span v-if="item.nearestDistance !== null">
-                · {{ item.nearestDistance.toFixed(0) }}M
-              </span>
+              <span v-if="item.nearestDistance !== null"> · {{ formatMeters(item.nearestDistance) }}</span>
             </p>
           </div>
         </div>
-        <div class="shrink-0 flex flex-col items-end">
-          <el-icon :size="20" color="#ffcc00" @click.stop="store.removeFav(item)">
-            <StarFilled />
-          </el-icon>
+        <div class="eta-stack">
+          <button class="star-hit" type="button" aria-label="Remove favorite" @click.stop="store.removeFav(item)">
+            <el-icon :size="20" color="#ffcc00">
+              <StarFilled />
+            </el-icon>
+          </button>
           <p
-            class="mt-1 text-xs leading-5"
-            :class="{ 'font-bold': index === 0, 'text-gray-500': index !== 0 }"
             v-for="(eta, index) in displayEtas(item.etas)"
             :key="index"
+            :class="index === 0 ? 'eta-primary' : 'eta-secondary'"
           >
             {{ formatEta(eta) }}
           </p>
         </div>
       </li>
-      <li v-if="commuteFilter && !visibleFavorites.length" class="py-5 text-sm text-gray-500">
-        No favorite routes go toward {{ targetPlace?.name_tc }}. Star a route that passes that stop.
+      <li v-if="commuteFilter && !visibleFavorites.length" class="route-row">
+        <p class="route-meta">
+          No favorite routes go toward {{ targetPlace?.name_tc }}. Star a route that passes that stop.
+        </p>
       </li>
     </ul>
   </div>
@@ -85,11 +81,10 @@
 <script lang="ts" setup>
 import { ElMessage } from 'element-plus'
 import { Refresh, StarFilled } from '@element-plus/icons-vue'
-import { formatDistanceToNow } from 'date-fns'
 import { useRouter } from 'vue-router'
 import type { LiveFavorite, SavedPlace } from '@/model'
 import { useCommuteStore } from '@/stores/commute'
-import { getCurrentLocationOrNull } from '@/utils'
+import { formatEta, formatMeters, getCurrentLocationOrNull } from '@/utils'
 import { loadLiveFavorite, refreshFavoriteEtas } from '@/services/CommuteService'
 
 type CommuteFilter = 'home' | 'work' | null
@@ -130,10 +125,6 @@ const filterBanner = computed(() => {
 
 const displayEtas = (etas: Array<string | null>) => {
   return etas.length ? etas : [null]
-}
-
-const formatEta = (eta: string | null) => {
-  return eta ? formatDistanceToNow(new Date(eta)) : '-'
 }
 
 const goToDetails = (item: LiveFavorite) => {

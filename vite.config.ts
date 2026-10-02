@@ -56,7 +56,9 @@ export default defineConfig({
       manifest: {
         name: 'I go to home by bus',
         short_name: 'goHomeByBus',
-        theme_color: '#ffffff',
+        display: 'standalone',
+        background_color: '#f2f2f7',
+        theme_color: '#f2f2f7',
         icons: [
           {
             src: 'pwa-192x192.png',

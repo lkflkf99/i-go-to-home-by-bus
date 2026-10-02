@@ -1,8 +1,9 @@
 <template>
   <GoogleMap
+    class="map-canvas"
     v-loading="isLoading"
     api-key="AIzaSyAd3JuKmaDu5q7FnmlvzjDb4bTd06BGAjY"
-    style="height: 100%; margin: -20px"
+    style="width: 100%; height: 100%"
     :center="center"
     :zoom="17"
     ref="mapRef"
@@ -27,29 +28,22 @@
     </Marker>
   </GoogleMap>
   <el-dialog v-model="dialog.visible" :title="dialog.title" width="90%">
-    <ul class="divide-y divide-gray-100 mt-8">
+    <ul>
       <li
-        class="flex justify-between gap-x-6 py-5"
+        class="route-row"
         v-for="(item, index) in dialog.routes"
-        v-bind:key="index"
+        :key="index"
         @click="() => goToDetails(item, item.co || 'KMB')"
       >
-        <div class="flex min-w-0 gap-x-4">
-          <div class="rounded-ful">
-            <IconTablerBus class="h-6 w-6" />
-            <p class="text-sm font-semibold text-gray-900">{{ item.co || 'KMB' }}</p>
-          </div>
+        <div class="flex min-w-0 gap-x-3">
+          <div class="route-badge">{{ item.co || 'KMB' }}</div>
           <div class="min-w-0 flex-auto">
-            <p class="text-sm font-semibold text-gray-900">{{ item.route }}</p>
-            <p class="mt-1 truncate text-xs text-gray-500">
-              {{ item.dest_tc }}
-            </p>
+            <p class="route-number">{{ item.route }}</p>
+            <p class="route-meta">{{ item.dest_tc }}</p>
           </div>
         </div>
-        <div class="shrink-0 flex flex-col items-end">
-          <p class="mt-1 text-xs leading-5 text-gray-500">
-            {{ item.eta ? formatDistanceToNow(item.eta) : '-' }}
-          </p>
+        <div class="eta-stack">
+          <p class="eta-primary">{{ formatEta(item.eta) }}</p>
         </div>
       </li>
     </ul>
@@ -57,12 +51,11 @@
 </template>
 
 <script setup>
-import { getCurrentLocation } from '@/utils'
+import { getCurrentLocation, formatEta } from '@/utils'
 import haversine from 'haversine-distance'
 import { GoogleMap, Marker, Circle } from 'vue3-google-map'
 import API from '@/services/ApiService'
 import { useRouter } from 'vue-router'
-import { formatDistanceToNow } from 'date-fns'
 
 const mapRef = ref()
 const router = useRouter()

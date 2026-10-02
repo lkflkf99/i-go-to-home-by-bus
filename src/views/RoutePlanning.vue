@@ -1,54 +1,52 @@
 <template>
   <div>
-    <el-input
-      v-model="destQuery"
-      size="large"
-      clearable
-      placeholder="Where are you going? e.g. 沙田"
-    />
-    <p class="mt-3 text-xs text-gray-500">{{ originLabel }}</p>
+    <div class="sticky-search">
+      <el-input
+        v-model="destQuery"
+        size="large"
+        clearable
+        placeholder="Where are you going? e.g. 沙田"
+      />
+      <p class="filter-banner">{{ originLabel }}</p>
+    </div>
 
-    <ul class="divide-y divide-gray-100 mt-4" v-if="isLoading">
-      <li class="py-5" v-for="index in 4" :key="index">
+    <ul class="settings-group" v-if="isLoading">
+      <li class="route-row" v-for="index in 4" :key="index">
         <el-skeleton :rows="2" animated />
       </li>
     </ul>
 
-    <p v-else-if="errorMessage" class="mt-8 text-sm text-gray-500">{{ errorMessage }}</p>
+    <p v-else-if="errorMessage" class="empty-state">{{ errorMessage }}</p>
 
-    <p v-else-if="destQuery && !results.length" class="mt-8 text-sm text-gray-500">
+    <p v-else-if="destQuery && !results.length" class="empty-state">
       No nearby buses match that destination.
     </p>
 
-    <ul class="divide-y divide-gray-100" v-else>
+    <ul class="settings-group" v-else-if="results.length">
       <li
-        class="flex justify-between gap-x-6 py-5"
+        class="route-row"
         v-for="item in results"
         :key="`${item.co}-${item.route}-${item.dest_tc}-${item.boardStopId}`"
         @click="goToDetails(item)"
       >
-        <div class="flex min-w-0 gap-x-4">
-          <div class="rounded-ful">
-            <IconTablerBus class="h-6 w-6" />
-            <p class="text-sm font-semibold text-gray-900">{{ item.co }}</p>
-          </div>
+        <div class="flex min-w-0 gap-x-3">
+          <div class="route-badge">{{ item.co }}</div>
           <div class="min-w-0 flex-auto">
-            <p class="text-sm font-semibold leading-6 text-gray-900">{{ item.route }}</p>
-            <p class="mt-1 truncate text-xs leading-5 text-gray-500">To {{ item.dest_tc }}</p>
-            <p class="mt-1 truncate text-xs leading-5 text-gray-500">
+            <p class="route-number">{{ item.route }}</p>
+            <p class="route-meta">To {{ item.dest_tc }}</p>
+            <p class="route-meta">
               Board at {{ item.boardStopName }}
-              <span v-if="item.walkDistance !== null"> · {{ item.walkDistance.toFixed(0) }}M</span>
+              <span v-if="item.walkDistance !== null"> · {{ formatMeters(item.walkDistance) }}</span>
             </p>
           </div>
         </div>
-        <div class="shrink-0 flex flex-col items-end">
+        <div class="eta-stack">
           <p
-            class="mt-1 text-xs leading-5"
-            :class="{ 'font-bold': index === 0, 'text-gray-500': index !== 0 }"
             v-for="(eta, index) in item.etas.length ? item.etas : [null]"
             :key="index"
+            :class="index === 0 ? 'eta-primary' : 'eta-secondary'"
           >
-            {{ eta ? formatDistanceToNow(new Date(eta)) : '-' }}
+            {{ formatEta(eta) }}
           </p>
         </div>
       </li>
@@ -57,10 +55,9 @@
 </template>
 
 <script lang="ts" setup>
-import { formatDistanceToNow } from 'date-fns'
 import { useRouter } from 'vue-router'
 import type { PlannedRoute } from '@/model'
-import { getCurrentLocationOrNull } from '@/utils'
+import { formatEta, formatMeters, getCurrentLocationOrNull } from '@/utils'
 import { planRoutes } from '@/services/CommuteService'
 
 const router = useRouter()

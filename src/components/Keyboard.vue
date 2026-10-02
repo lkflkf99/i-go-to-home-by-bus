@@ -69,29 +69,31 @@ defineExpose({
   display: flex;
   align-items: flex-start;
   gap: 8px;
+  padding-bottom: env(safe-area-inset-bottom, 8px);
+}
 
-  .num-panel {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    flex: 0.6;
+.num-panel {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  flex: 0.62;
+  gap: 6px;
+}
 
-    button {
-      margin: 0;
-      height: 48px;
-    }
-  }
+.letter-panel {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  flex: 0.38;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
 
-  .letter-panel {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    flex: 0.4;
-    max-height: 192px;
-    overflow-y: scroll;
-
-    button {
-      margin: 0;
-      height: 48px;
-    }
-  }
+.num-panel :deep(.el-button),
+.letter-panel :deep(.el-button) {
+  margin: 0;
+  height: 48px;
+  font-size: 18px;
+  font-weight: 600;
+  border-radius: 10px;
 }
 </style>

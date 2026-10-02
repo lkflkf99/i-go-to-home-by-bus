@@ -5,18 +5,20 @@
       Use nearest stop
     </el-button>
     <el-button v-if="modelValue" class="mt-3" round plain @click="clearPlace">Clear</el-button>
-    <ul class="divide-y divide-gray-100 mt-4 max-h-72 overflow-auto">
+    <ul class="mt-4 max-h-72 overflow-auto">
       <li
-        class="py-3"
+        class="route-row"
         v-for="stop in results"
         :key="stop.stop"
         @click="selectPlace(stop)"
       >
-        <p class="text-sm font-semibold text-gray-900">{{ stop.name_tc }}</p>
-        <p class="mt-1 truncate text-xs text-gray-500">{{ stop.name_en }}</p>
+        <div class="min-w-0 flex-auto">
+          <p class="text-sm font-semibold" style="color: var(--app-text)">{{ stop.name_tc }}</p>
+          <p class="route-meta">{{ stop.name_en }}</p>
+        </div>
       </li>
-      <li v-if="query && !results.length" class="py-3 text-xs text-gray-500">
-        No stops match that name
+      <li v-if="query && !results.length" class="route-row">
+        <p class="route-meta">No stops match that name</p>
       </li>
     </ul>
   </el-dialog>

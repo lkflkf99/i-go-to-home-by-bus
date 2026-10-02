@@ -1,44 +1,45 @@
 <template>
-  <div class="search-input">
-    <el-input
-      v-model="searchInput"
-      size="large"
-      placeholder="Search for a bus route"
-      :prefix-icon="Search"
-      @focus="() => keyboardRef.open()"
-    />
+  <div>
+    <div class="sticky-search">
+      <el-input
+        v-model="searchInput"
+        size="large"
+        placeholder="Search route number"
+        :prefix-icon="Search"
+        readonly
+        inputmode="none"
+        @focus="() => keyboardRef.open()"
+      />
+    </div>
+
+    <ul class="settings-group" v-infinite-scroll="loadRoute">
+      <li
+        class="route-row"
+        v-for="(item, index) in displayRouteList"
+        :key="index"
+        @click="() => goToDetails(item, item.co || 'KMB')"
+      >
+        <div class="flex min-w-0 gap-x-3">
+          <div class="route-badge">{{ item.co || 'KMB' }}</div>
+          <div class="min-w-0 flex-auto">
+            <p class="route-number">
+              {{ item.route }}
+              <span v-if="item.service_type > 1" class="route-meta">(特別班次)</span>
+            </p>
+            <p class="route-meta">{{ item.orig_tc }} - {{ item.dest_tc }}</p>
+          </div>
+        </div>
+        <button class="star-hit" type="button" aria-label="Toggle favorite" @click.stop="() => commuteStore.toggleFav(item)">
+          <el-icon :size="22" color="#ffcc00">
+            <StarFilled v-if="commuteStore.isFav(item)" />
+            <Star v-else />
+          </el-icon>
+        </button>
+      </li>
+    </ul>
+
+    <Keyboard ref="keyboardRef" @change="handleInput" :letter-keys="letterKeys" />
   </div>
-
-  <ul class="divide-y divide-gray-100 mt-8" v-infinite-scroll="loadRoute">
-    <li
-      class="flex justify-between gap-x-6 py-5"
-      v-for="(item, index) in displayRouteList"
-      v-bind:key="index"
-      @click="() => goToDetails(item, item.co || 'KMB')"
-    >
-      <div class="flex min-w-0 gap-x-4">
-        <div class="rounded-ful">
-          <IconTablerBus class="h-6 w-6" />
-          <p class="text-sm font-semibold text-gray-900">{{ item.co || 'KMB' }}</p>
-        </div>
-        <div class="min-w-0 flex-auto">
-          <p class="text-sm font-semibold text-gray-900">
-            {{ item.route }}
-            <span v-if="item.service_type > 1">(特別班次)</span>
-          </p>
-          <p class="mt-1 truncate text-xs text-gray-500">{{ item.orig_tc }} - {{ item.dest_tc }}</p>
-        </div>
-      </div>
-      <div class="shrink-0 sm:flex sm:flex-col sm:items-end">
-        <el-icon :size="24" color="#ffcc00" @click.stop="() => commuteStore.toggleFav(item)">
-          <StarFilled v-if="commuteStore.isFav(item)" />
-          <Star v-else />
-        </el-icon>
-      </div>
-    </li>
-  </ul>
-
-  <Keyboard ref="keyboardRef" @change="handleInput" :letter-keys="letterKeys" />
 </template>
 
 <script lang="ts" setup>
@@ -111,15 +112,3 @@ const handleInput = (val) => {
   searchInput.value += val
 }
 </script>
-
-<style scoped>
-.search-input {
-  margin: 0 -20px;
-  padding: 8px 16px;
-  top: 60px;
-  position: fixed;
-  width: 100%;
-  background-color: var(--el-bg-color);
-  z-index: 1;
-}
-</style>

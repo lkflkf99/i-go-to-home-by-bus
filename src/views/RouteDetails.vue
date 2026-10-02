@@ -1,68 +1,59 @@
 <template>
-  <ul class="divide-y divide-gray-100" v-if="isPageLoading">
-    <li
-      class="flex justify-between gap-x-6 py-5"
-      v-for="index in [1, 2, 3, 4, 5, 6, 7, 8, 9]"
-      v-bind:key="index"
-    >
+  <ul class="settings-group" v-if="isPageLoading">
+    <li class="route-row" v-for="index in 8" :key="index">
       <el-skeleton :rows="2" animated />
     </li>
   </ul>
   <div v-else>
-    <div class="flex">
+    <div class="action-row">
       <el-button round plain type="primary" :icon="Switch" @click="handleSwitchDirection">
-        Switch Direction
+        Switch
       </el-button>
-      <el-button round plain type="primary" :icon="Refresh" @click="handleRefresh"> Refresh </el-button>
+      <el-button round plain type="primary" :icon="Refresh" @click="handleRefresh">Refresh</el-button>
     </div>
-    <ul class="divide-y divide-gray-100">
+    <ul class="settings-group">
       <li
-        class="flex justify-between gap-x-6 py-5"
+        class="route-row"
         v-for="(stop, index) in displayStops"
-        v-bind:key="index"
+        :key="index"
         @click="() => handleStopClick(stop)"
       >
-        <div class="flex min-w-0 gap-x-4">
-          <div class="rounded-ful">
-            <IconTablerBusStop class="h-6 w-6" />
-          </div>
+        <div class="flex min-w-0 gap-x-3">
           <div class="min-w-0 flex-auto">
             <p
-              class="text-sm font-semibold leading-6 text-gray-900"
-              :class="{ 'text-blue-500': stop?.distance <= 200 }"
+              class="text-sm font-semibold"
+              :style="{ color: stop?.distance <= 200 ? 'var(--el-color-primary)' : 'var(--app-text)' }"
             >
               {{ stop.stop_tc }}
             </p>
-            <p class="mt-1 truncate text-xs leading-5 text-gray-500">
-              Distance: {{ stop?.distance?.toFixed(2) }}M
-            </p>
+            <p class="route-meta">{{ formatMeters(stop?.distance) }}</p>
             <el-button
-              class="mt-4"
+              class="mt-2"
               round
               plain
               type="primary"
+              size="small"
               v-if="stop.camData"
               @click.stop="handleViewTrafficCamClick(stop.camData)"
             >
-              traffic cam
+              Traffic cam
             </el-button>
           </div>
         </div>
-        <div class="shrink-0 flex flex-col items-end">
+        <div class="eta-stack">
           <p
-            class="mt-1 text-xs leading-5"
-            :class="{ 'font-bold': index === 0, 'text-gray-500': index !== 0 }"
-            v-for="(stopEta, index) in stop.eta"
-            v-bind:key="index"
+            v-for="(stopEta, etaIndex) in stop.eta"
+            :key="etaIndex"
+            :class="etaIndex === 0 ? 'eta-primary' : 'eta-secondary'"
           >
-            {{ stopEta.eta ? formatDistanceToNow(stopEta.eta) : '-' }}
+            {{ formatEta(stopEta.eta) }}
           </p>
         </div>
       </li>
     </ul>
 
-    <el-dialog v-model="dialog.visible" :title="dialog.title" width="500">
-      <img :src="dialog.imageUrl" />
+    <el-dialog v-model="dialog.visible" :title="dialog.title" width="90%">
+      <img :src="dialog.imageUrl" style="width: 100%; border-radius: 8px" />
     </el-dialog>
   </div>
 </template>
@@ -73,8 +64,7 @@ import haversine from 'haversine-distance'
 import { ElLoading } from 'element-plus'
 import { Switch, Refresh } from '@element-plus/icons-vue'
 import API from '@/services/ApiService'
-import { getCurrentLocation, isIOS } from '@/utils'
-import { formatDistanceToNow } from 'date-fns'
+import { getCurrentLocation, isIOS, formatEta, formatMeters } from '@/utils'
 import type { RouteStopResp, StopResp, EtaResp, RouteStop, Eta } from '@/model'
 import trafficCam from '@/assets/traffic_cam.json'
 
