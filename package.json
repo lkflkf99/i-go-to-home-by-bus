@@ -1,6 +1,7 @@
 {
   "name": "i-go-to-home-by-bus",
   "version": "0.0.1",
+  "packageManager": "yarn@1.22.22",
   "scripts": {
     "build": "vue-tsc --noEmit && vite build",
     "test:unit": "vitest --environment jsdom",
