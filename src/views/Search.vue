@@ -4,7 +4,7 @@
       <el-input
         v-model="searchInput"
         size="large"
-        placeholder="Search route number"
+        :placeholder="t('search.placeholder')"
         :prefix-icon="Search"
         readonly
         inputmode="none"
@@ -24,12 +24,12 @@
           <div class="min-w-0 flex-auto">
             <p class="route-number">
               {{ item.route }}
-              <span v-if="item.service_type > 1" class="route-meta">(特別班次)</span>
+              <span v-if="item.service_type > 1" class="route-meta">({{ t('search.special') }})</span>
             </p>
-            <p class="route-meta">{{ item.orig_tc }} - {{ item.dest_tc }}</p>
+            <p class="route-meta">{{ textByLocale(item.orig_tc, item.orig_en) }} - {{ textByLocale(item.dest_tc, item.dest_en) }}</p>
           </div>
         </div>
-        <button class="star-hit" type="button" aria-label="Toggle favorite" @click.stop="() => commuteStore.toggleFav(item)">
+        <button class="star-hit" type="button" :aria-label="t('search.toggleFav')" @click.stop="() => commuteStore.toggleFav(item)">
           <el-icon :size="22" color="#ffcc00">
             <StarFilled v-if="commuteStore.isFav(item)" />
             <Star v-else />
@@ -45,8 +45,9 @@
 <script lang="ts" setup>
 import { Search, Star, StarFilled } from '@element-plus/icons-vue'
 import { useCommuteStore } from '@/stores/commute'
-import { getCompany } from '@/utils'
+import { getCompany, textByLocale } from '@/utils'
 
+const { t } = useI18n()
 const keyboardRef = ref()
 const scrollCount = ref(10)
 const searchInput = ref('')

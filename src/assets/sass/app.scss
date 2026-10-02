@@ -176,6 +176,15 @@ body {
   background: var(--row-active);
 }
 
+.settings-row.is-control {
+  align-items: center;
+  cursor: default;
+}
+
+.settings-row.is-control:active {
+  background: transparent;
+}
+
 .route-badge {
   min-width: 36px;
   text-align: center;

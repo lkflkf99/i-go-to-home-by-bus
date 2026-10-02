@@ -1,3 +1,5 @@
+import { i18n } from '@/modules/i18n'
+
 export const formatEta = (eta: string | Date | null | undefined) => {
   if (!eta) {
     return '-'
@@ -10,9 +12,9 @@ export const formatEta = (eta: string | Date | null | undefined) => {
 
   const mins = Math.round((time - Date.now()) / 60000)
   if (mins <= 0) {
-    return 'Due'
+    return i18n.global.t('eta.due')
   }
-  return `${mins} min`
+  return i18n.global.t('eta.min', { n: mins })
 }
 
 export const formatMeters = (meters: number | null | undefined) => {
@@ -20,7 +22,7 @@ export const formatMeters = (meters: number | null | undefined) => {
     return ''
   }
   if (meters < 1000) {
-    return `${Math.round(meters)} m`
+    return i18n.global.t('distance.m', { n: Math.round(meters) })
   }
-  return `${(meters / 1000).toFixed(1)} km`
+  return i18n.global.t('distance.km', { n: (meters / 1000).toFixed(1) })
 }

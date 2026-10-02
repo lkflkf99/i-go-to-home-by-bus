@@ -7,8 +7,15 @@ const messages = Object.fromEntries(
   })
 )
 
+const savedLocale = typeof localStorage !== 'undefined' && localStorage.getItem('locale') === 'zh-HK' ? 'zh-HK' : 'en'
+
+if (typeof document !== 'undefined') {
+  document.documentElement.lang = savedLocale
+}
+
 export const i18n = createI18n({
-  locale: 'en',
+  locale: savedLocale,
+  fallbackLocale: 'en',
   legacy: false,
   messages,
 })

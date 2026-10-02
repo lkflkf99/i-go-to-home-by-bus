@@ -3,7 +3,7 @@
     <div class="keyboard-container">
       <div class="num-panel">
         <el-button v-for="key in numKey" v-bind:key="key" @click="handleClick(key)">
-          {{ key }}
+          {{ keyLabel(key) }}
         </el-button>
       </div>
       <div class="letter-panel">
@@ -25,9 +25,20 @@ const props = defineProps({
   },
 })
 
+const { t } = useI18n()
 const isOpen = ref(false)
 const emit = defineEmits(['change'])
 const numKey = [1, 2, 3, 4, 5, 6, 7, 8, 9, 'reset', 0, 'back']
+
+const keyLabel = (key: string | number) => {
+  if (key === 'reset') {
+    return t('keyboard.reset')
+  }
+  if (key === 'back') {
+    return t('keyboard.back')
+  }
+  return key
+}
 const defaultLetterKeys = [
   'A',
   'B',

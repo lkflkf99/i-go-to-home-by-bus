@@ -8,7 +8,7 @@
         :class="{ 'is-active-filter': commuteFilter === 'home' }"
         @click="toggleFilter('home')"
       >
-        Go Home
+        {{ t('fav.goHome') }}
       </el-button>
       <el-button
         round
@@ -17,17 +17,17 @@
         :class="{ 'is-active-filter': commuteFilter === 'work' }"
         @click="toggleFilter('work')"
       >
-        Go Work
+        {{ t('fav.goWork') }}
       </el-button>
       <el-button round plain type="primary" :icon="Refresh" :loading="isRefreshing" @click="handleRefresh">
-        Refresh
+        {{ t('fav.refresh') }}
       </el-button>
     </div>
 
     <p v-if="filterBanner" class="filter-banner">{{ filterBanner }}</p>
 
     <p v-if="!store.favRoutes.length" class="empty-state">
-      Star routes from Search to see live arrivals here.
+      {{ t('fav.empty') }}
     </p>
 
     <ul class="settings-group" v-else-if="isPageLoading">
@@ -47,15 +47,17 @@
           <div class="route-badge">{{ item.co }}</div>
           <div class="min-w-0 flex-auto">
             <p class="route-number">{{ item.route }}</p>
-            <p class="route-meta">{{ item.orig_tc }} - {{ item.dest_tc }}</p>
             <p class="route-meta">
-              {{ item.nearestStopName }}
+              {{ textByLocale(item.orig_tc, item.orig_en) }} - {{ textByLocale(item.dest_tc, item.dest_en) }}
+            </p>
+            <p class="route-meta">
+              {{ textByLocale(item.nearestStopName, item.nearestStopNameEn) }}
               <span v-if="item.nearestDistance !== null"> · {{ formatMeters(item.nearestDistance) }}</span>
             </p>
           </div>
         </div>
         <div class="eta-stack">
-          <button class="star-hit" type="button" aria-label="Remove favorite" @click.stop="store.removeFav(item)">
+          <button class="star-hit" type="button" :aria-label="t('fav.remove')" @click.stop="store.removeFav(item)">
             <el-icon :size="20" color="#ffcc00">
               <StarFilled />
             </el-icon>
@@ -71,7 +73,7 @@
       </li>
       <li v-if="commuteFilter && !visibleFavorites.length" class="route-row">
         <p class="route-meta">
-          No favorite routes go toward {{ targetPlace?.name_tc }}. Star a route that passes that stop.
+          {{ t('fav.noneToward', { name: textByLocale(targetPlace?.name_tc, targetPlace?.name_en) }) }}
         </p>
       </li>
     </ul>
@@ -84,13 +86,16 @@ import { Refresh, StarFilled } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import type { LiveFavorite, SavedPlace } from '@/model'
 import { useCommuteStore } from '@/stores/commute'
-import { formatEta, formatMeters, getCurrentLocationOrNull } from '@/utils'
+import { usePrefsStore } from '@/stores/prefs'
+import { formatEta, formatMeters, getCurrentLocationOrNull, textByLocale } from '@/utils'
 import { loadLiveFavorite, refreshFavoriteEtas } from '@/services/CommuteService'
 
 type CommuteFilter = 'home' | 'work' | null
 
+const { t } = useI18n()
 const router = useRouter()
 const store = useCommuteStore()
+const prefs = usePrefsStore()
 const isPageLoading = ref(false)
 const isRefreshing = ref(false)
 const commuteFilter = ref<CommuteFilter>(null)
@@ -115,10 +120,10 @@ const visibleFavorites = computed(() => {
 
 const filterBanner = computed(() => {
   if (commuteFilter.value === 'home' && store.homePlace) {
-    return `Going home to ${store.homePlace.name_tc}`
+    return t('fav.goingHome', { name: textByLocale(store.homePlace.name_tc, store.homePlace.name_en) })
   }
   if (commuteFilter.value === 'work' && store.workPlace) {
-    return `Going to work at ${store.workPlace.name_tc}`
+    return t('fav.goingWork', { name: textByLocale(store.workPlace.name_tc, store.workPlace.name_en) })
   }
   return ''
 })
@@ -170,7 +175,7 @@ const toggleFilter = async (next: 'home' | 'work') => {
   const place = next === 'home' ? store.homePlace : store.workPlace
   if (!place) {
     ElMessage.info({
-      message: next === 'home' ? 'Set your home stop in Settings first' : 'Set your work stop in Settings first',
+      message: next === 'home' ? t('fav.setHomeFirst') : t('fav.setWorkFirst'),
     })
     return
   }
@@ -181,6 +186,13 @@ const toggleFilter = async (next: 'home' | 'work') => {
 
 watch(
   () => store.favRoutes.length,
+  () => {
+    loadLive()
+  }
+)
+
+watch(
+  () => prefs.locationEnabled,
   () => {
     loadLive()
   }

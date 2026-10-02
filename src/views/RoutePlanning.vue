@@ -5,7 +5,7 @@
         v-model="destQuery"
         size="large"
         clearable
-        placeholder="Where are you going? e.g. 沙田"
+        :placeholder="t('plan.placeholder')"
       />
       <p class="filter-banner">{{ originLabel }}</p>
     </div>
@@ -19,7 +19,7 @@
     <p v-else-if="errorMessage" class="empty-state">{{ errorMessage }}</p>
 
     <p v-else-if="destQuery && !results.length" class="empty-state">
-      No nearby buses match that destination.
+      {{ t('plan.noMatch') }}
     </p>
 
     <ul class="settings-group" v-else-if="results.length">
@@ -33,9 +33,9 @@
           <div class="route-badge">{{ item.co }}</div>
           <div class="min-w-0 flex-auto">
             <p class="route-number">{{ item.route }}</p>
-            <p class="route-meta">To {{ item.dest_tc }}</p>
+            <p class="route-meta">{{ t('plan.to', { name: textByLocale(item.dest_tc, item.dest_en) }) }}</p>
             <p class="route-meta">
-              Board at {{ item.boardStopName }}
+              {{ t('plan.boardAt', { name: textByLocale(item.boardStopName, item.boardStopNameEn) }) }}
               <span v-if="item.walkDistance !== null"> · {{ formatMeters(item.walkDistance) }}</span>
             </p>
           </div>
@@ -57,15 +57,21 @@
 <script lang="ts" setup>
 import { useRouter } from 'vue-router'
 import type { PlannedRoute } from '@/model'
-import { formatEta, formatMeters, getCurrentLocationOrNull } from '@/utils'
+import { formatEta, formatMeters, getCurrentLocationOrNull, textByLocale } from '@/utils'
+import { usePrefsStore } from '@/stores/prefs'
 import { planRoutes } from '@/services/CommuteService'
 
+const { t } = useI18n()
 const router = useRouter()
+const prefs = usePrefsStore()
 const destQuery = ref('')
 const isLoading = ref(false)
 const errorMessage = ref('')
-const originLabel = ref('Using your current location')
 const results = ref<PlannedRoute[]>([])
+
+const originLabel = computed(() =>
+  prefs.locationEnabled ? t('plan.usingLocation') : t('plan.locationOff')
+)
 
 const goToDetails = (item: PlannedRoute) => {
   router.push({
@@ -92,14 +98,12 @@ const search = async (query: string) => {
 
   const location = await getCurrentLocationOrNull()
   if (!location) {
-    originLabel.value = 'Location unavailable'
-    errorMessage.value = 'Enable location to plan a route from nearby stops.'
+    errorMessage.value = t('plan.locationOff')
     results.value = []
     isLoading.value = false
     return
   }
 
-  originLabel.value = 'Using your current location'
   results.value = await planRoutes(location, dest)
 
   isLoading.value = false
@@ -111,5 +115,14 @@ debouncedWatch(
     search(value)
   },
   { debounce: 400 }
+)
+
+watch(
+  () => prefs.locationEnabled,
+  () => {
+    if (destQuery.value) {
+      search(destQuery.value)
+    }
+  }
 )
 </script>

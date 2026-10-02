@@ -23,6 +23,7 @@ export interface GeoLocation {
 interface ResolvedStop {
   stop: string
   name_tc: string
+  name_en: string
   lat: string
   long: string
   seq: number
@@ -150,6 +151,7 @@ const resolveStop = async (company: Company, routeStop: RouteStop): Promise<Reso
     return {
       stop: cached.stop,
       name_tc: cached.name_tc,
+      name_en: cached.name_en,
       lat: cached.lat,
       long: cached.long,
       seq: Number(routeStop.seq),
@@ -163,6 +165,7 @@ const resolveStop = async (company: Company, routeStop: RouteStop): Promise<Reso
     return {
       stop: data.data.stop,
       name_tc: data.data.name_tc,
+      name_en: data.data.name_en,
       lat: data.data.lat,
       long: data.data.long,
       seq: Number(routeStop.seq),
@@ -312,17 +315,17 @@ const toLiveFavorite = (
   servesPlace: boolean
 ): LiveFavorite => {
   const nearest = leg?.nearest
-  const dest =
-    leg?.direction === 'inbound' ? route.orig_tc : route.dest_tc
-  const orig =
-    leg?.direction === 'inbound' ? route.dest_tc : route.orig_tc
+  const inbound = leg?.direction === 'inbound'
 
   return {
     ...route,
     co: getCompany(route),
-    orig_tc: orig,
-    dest_tc: dest,
+    orig_tc: inbound ? route.dest_tc : route.orig_tc,
+    dest_tc: inbound ? route.orig_tc : route.dest_tc,
+    orig_en: inbound ? route.dest_en : route.orig_en,
+    dest_en: inbound ? route.orig_en : route.dest_en,
     nearestStopName: nearest?.name_tc || '-',
+    nearestStopNameEn: nearest?.name_en || nearest?.name_tc || '-',
     nearestStopId: nearest?.stop || '',
     nearestDistance: nearest && Number.isFinite(nearest.distance) ? nearest.distance : null,
     direction: leg?.direction || 'outbound',
@@ -434,8 +437,11 @@ export const planRoutes = async (
       service_type: eta.service_type || 1,
       co: 'KMB',
       dest_tc: eta.dest_tc,
+      dest_en: eta.dest_en,
       orig_tc: stop.name_tc,
+      orig_en: stop.name_en,
       boardStopName: stop.name_tc,
+      boardStopNameEn: stop.name_en,
       boardStopId: stop.stop,
       walkDistance: stop.distance,
       direction: dirCode === 'I' ? 'inbound' : 'outbound',
@@ -481,6 +487,7 @@ export const planRoutes = async (
       }
 
       const dest = direction === 'inbound' ? route.orig_tc : route.dest_tc
+      const destEn = direction === 'inbound' ? route.orig_en : route.dest_en
       const key = `CTB-${route.route}-${dest}`
       if (planned.has(key)) {
         return
@@ -492,8 +499,11 @@ export const planRoutes = async (
         service_type: route.service_type || 1,
         co: 'CTB',
         dest_tc: dest,
+        dest_en: destEn,
         orig_tc: direction === 'inbound' ? route.dest_tc : route.orig_tc,
+        orig_en: direction === 'inbound' ? route.dest_en : route.orig_en,
         boardStopName: board.name_tc,
+        boardStopNameEn: board.name_en,
         boardStopId: board.stop,
         walkDistance: Number.isFinite(board.distance) ? board.distance : null,
         direction,

@@ -1,2 +1,77 @@
 app:
-  title: Vue 3 Vite Starter
+  title: I go to home by bus
+nav:
+  favorites: Favorites
+  search: Search
+  plan: Plan
+  map: Map
+  settings: Settings
+  back: Back
+settings:
+  location: Location
+  locationOn: Using your current location
+  locationOff: Nearby ETAs and map are paused
+  language: Language
+  langEn: English
+  langZh: 繁體中文
+  home: Home
+  work: Work
+  notSet: Not set
+  theme: Theme
+  themeDefault: Default
+  themeBlackPink: Black Pink
+  selectTheme: Select theme
+  cancel: Cancel
+  confirm: Confirm
+  updateDb: Update local data
+  lastUpdated: Last updated
+  setHome: Set home stop
+  setWork: Set work stop
+  searchStop: Search a stop name
+fav:
+  goHome: Go Home
+  goWork: Go Work
+  refresh: Refresh
+  empty: Star routes from Search to see live arrivals here.
+  goingHome: Going home to {name}
+  goingWork: Going to work at {name}
+  setHomeFirst: Set your home stop in Settings first
+  setWorkFirst: Set your work stop in Settings first
+  noneToward: No favorite routes go toward {name}. Star a route that passes that stop.
+  remove: Remove favorite
+search:
+  placeholder: Search route number
+  special: Special
+  toggleFav: Toggle favorite
+plan:
+  placeholder: Where are you going? e.g. Sha Tin
+  usingLocation: Using your current location
+  locationOff: Turn on Location in Settings to plan from nearby stops.
+  noMatch: No nearby buses match that destination.
+  to: To {name}
+  boardAt: Board at {name}
+details:
+  switch: Switch
+  refresh: Refresh
+  trafficCam: Traffic cam
+  openingMaps: Opening in Google Maps...
+map:
+  locationOff: Turn on Location in Settings to see nearby stops.
+place:
+  nearest: Use nearest stop
+  clear: Clear
+  noMatch: No stops match that name
+  noStops: No cached stops yet. Update local data first.
+  noLocation: Could not read your location
+location:
+  denied: Location permission was denied. Enable it in the browser or system settings.
+  unsupported: Geolocation is not supported by this browser.
+eta:
+  due: Due
+  min: '{n} min'
+distance:
+  m: '{n} m'
+  km: '{n} km'
+keyboard:
+  reset: reset
+  back: back

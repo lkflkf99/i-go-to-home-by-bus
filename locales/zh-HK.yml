@@ -1,0 +1,77 @@
+app:
+  title: 搭巴士返屋企
+nav:
+  favorites: 收藏
+  search: 搜尋
+  plan: 規劃
+  map: 地圖
+  settings: 設定
+  back: 返回
+settings:
+  location: 位置
+  locationOn: 使用你而家嘅位置
+  locationOff: 已關閉附近到站時間同地圖
+  language: 語言
+  langEn: English
+  langZh: 繁體中文
+  home: 屋企
+  work: 公司
+  notSet: 未設定
+  theme: 主題
+  themeDefault: 預設
+  themeBlackPink: Black Pink
+  selectTheme: 選擇主題
+  cancel: 取消
+  confirm: 確定
+  updateDb: 更新本地資料
+  lastUpdated: 上次更新
+  setHome: 設定屋企巴士站
+  setWork: 設定公司巴士站
+  searchStop: 搜尋巴士站名稱
+fav:
+  goHome: 返屋企
+  goWork: 返工
+  refresh: 重新整理
+  empty: 喺搜尋頁加星星，就可以喺呢度睇到站時間。
+  goingHome: 返屋企：{name}
+  goingWork: 返工：{name}
+  setHomeFirst: 請先喺設定入面設定屋企站
+  setWorkFirst: 請先喺設定入面設定公司站
+  noneToward: 收藏路線冇經過 {name}。請收藏一條會經過呢個站嘅路線。
+  remove: 取消收藏
+search:
+  placeholder: 搜尋路線編號
+  special: 特別班次
+  toggleFav: 收藏／取消收藏
+plan:
+  placeholder: 你要去邊？例如 沙田
+  usingLocation: 使用你而家嘅位置
+  locationOff: 請喺設定開啟位置，先可以規劃附近巴士。
+  noMatch: 附近冇巴士去呢個目的地。
+  to: 往 {name}
+  boardAt: 喺 {name} 上車
+details:
+  switch: 調轉方向
+  refresh: 重新整理
+  trafficCam: 交通鏡頭
+  openingMaps: 正喺 Google 地圖開啟...
+map:
+  locationOff: 請喺設定開啟位置，先可以睇附近車站。
+place:
+  nearest: 使用最近車站
+  clear: 清除
+  noMatch: 冇符合嘅車站
+  noStops: 未有本地車站資料。請先更新本地資料。
+  noLocation: 讀唔到你嘅位置
+location:
+  denied: 瀏覽器拒絕咗位置權限。請喺瀏覽器或系統設定開啟。
+  unsupported: 呢個瀏覽器唔支援定位。
+eta:
+  due: 即將到
+  min: '{n} 分鐘'
+distance:
+  m: '{n} 米'
+  km: '{n} 公里'
+keyboard:
+  reset: 重設
+  back: 刪除

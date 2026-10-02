@@ -1,5 +1,9 @@
 <template>
+  <p v-if="!prefs.locationEnabled" class="empty-state">{{ t('map.locationOff') }}</p>
+  <div v-else-if="isLoading" class="map-canvas" v-loading="true"></div>
+  <p v-else-if="!center" class="empty-state">{{ t('location.denied') }}</p>
   <GoogleMap
+    v-else
     class="map-canvas"
     v-loading="isLoading"
     api-key="AIzaSyAd3JuKmaDu5q7FnmlvzjDb4bTd06BGAjY"
@@ -39,7 +43,7 @@
           <div class="route-badge">{{ item.co || 'KMB' }}</div>
           <div class="min-w-0 flex-auto">
             <p class="route-number">{{ item.route }}</p>
-            <p class="route-meta">{{ item.dest_tc }}</p>
+            <p class="route-meta">{{ textByLocale(item.dest_tc, item.dest_en) }}</p>
           </div>
         </div>
         <div class="eta-stack">
@@ -51,12 +55,15 @@
 </template>
 
 <script setup>
-import { getCurrentLocation, formatEta } from '@/utils'
+import { getCurrentLocation, formatEta, textByLocale } from '@/utils'
 import haversine from 'haversine-distance'
 import { GoogleMap, Marker, Circle } from 'vue3-google-map'
 import API from '@/services/ApiService'
 import { useRouter } from 'vue-router'
+import { usePrefsStore } from '@/stores/prefs'
 
+const { t } = useI18n()
+const prefs = usePrefsStore()
 const mapRef = ref()
 const router = useRouter()
 const isLoading = ref(true)
@@ -82,30 +89,55 @@ watch(
   }
 )
 
-onMounted(async () => {
-  const { latitude, longitude } = await getCurrentLocation()
-  center.value = { lat: latitude, lng: longitude }
+const loadNearbyStops = async () => {
+  if (!prefs.locationEnabled) {
+    center.value = null
+    nearbyStops.value = []
+    isLoading.value = false
+    return
+  }
 
-  nearbyStops.value = JSON.parse(localStorage.getItem('stops') || '[]').filter((stop) => {
-    return (
-      haversine(
-        { latitude, longitude },
-        {
-          latitude: stop.lat,
-          longitude: stop.long,
-        }
-      ) <= 1000
-    )
-  })
+  isLoading.value = true
+
+  try {
+    const { latitude, longitude } = await getCurrentLocation()
+    center.value = { lat: latitude, lng: longitude }
+
+    nearbyStops.value = JSON.parse(localStorage.getItem('stops') || '[]').filter((stop) => {
+      return (
+        haversine(
+          { latitude, longitude },
+          {
+            latitude: stop.lat,
+            longitude: stop.long,
+          }
+        ) <= 1000
+      )
+    })
+  } catch {
+    center.value = null
+    nearbyStops.value = []
+  }
 
   isLoading.value = false
+}
+
+watch(
+  () => prefs.locationEnabled,
+  () => {
+    loadNearbyStops()
+  }
+)
+
+onMounted(() => {
+  loadNearbyStops()
 })
 
 const openStopDetails = async (item) => {
   const { data } = await API.get(`/kmb/stop-eta/${item.stop}`)
 
   dialog.value = {
-    title: item.name_tc,
+    title: textByLocale(item.name_tc, item.name_en),
     visible: true,
     routes: data.data,
   }

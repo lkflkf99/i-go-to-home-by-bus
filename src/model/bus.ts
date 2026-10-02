@@ -63,6 +63,7 @@ export interface SavedPlace {
 export interface LiveFavorite extends BusRoute {
   co: Company
   nearestStopName: string
+  nearestStopNameEn?: string
   nearestStopId: string
   nearestDistance: number | null
   direction: 'inbound' | 'outbound'
@@ -75,8 +76,11 @@ export interface PlannedRoute {
   service_type: string | number
   co: Company
   dest_tc: string
+  dest_en?: string
   orig_tc: string
+  orig_en?: string
   boardStopName: string
+  boardStopNameEn?: string
   boardStopId: string
   walkDistance: number | null
   direction: 'inbound' | 'outbound'
