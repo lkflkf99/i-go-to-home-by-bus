@@ -14,7 +14,7 @@ import type {
   Stop,
   StopResp,
 } from '@/model'
-import { getCompany } from '@/utils'
+import { getCompany, getStopCompany, sortRouteNumbers } from '@/utils'
 
 export interface GeoLocation {
   latitude: number
@@ -41,8 +41,12 @@ interface DirectionLeg {
 
 const PLACE_RADIUS_M = 400
 const NEARBY_STOP_M = 800
+const MAP_RADIUS_M = 1000
+const MAP_CLUSTER_M = 30
 const MAX_NEARBY_STOPS = 8
+const MAX_MAP_STOPS = 28
 const MAX_CTB_PLAN = 10
+const MAX_CTB_MAP_ROUTES = 8
 
 const stopDetailCache = new Map<string, Stop>()
 
@@ -57,6 +61,27 @@ export const getCachedStops = (): Stop[] => {
   } catch {
     return []
   }
+}
+
+export const getCachedRoutes = (): BusRoute[] => {
+  try {
+    return JSON.parse(localStorage.getItem('routes') || '[]')
+  } catch {
+    return []
+  }
+}
+
+const persistDiscoveredStop = (stop: Stop, company: Company) => {
+  if (company !== 'CTB') {
+    return
+  }
+
+  const stops = getCachedStops()
+  if (stops.some((item) => item.stop === stop.stop)) {
+    return
+  }
+
+  localStorage.setItem('stops', JSON.stringify(stops.concat({ ...stop, co: 'CTB' })))
 }
 
 const seedStopCache = () => {
@@ -181,6 +206,7 @@ const resolveStop = async (
       { ttlMs: CATALOG_TTL_MS, persist: true }
     )
     stopDetailCache.set(routeStop.stop, stop)
+    persistDiscoveredStop(stop, company)
     return toResolvedStop(stop, Number(routeStop.seq))
   } catch {
     return null
@@ -407,14 +433,95 @@ export const loadRouteEtas = async (
   return grouped
 }
 
+interface BatchStopEta {
+  co?: string
+  route?: string
+  dir?: string
+  seq?: number
+  dest?: string
+  dest_tc?: string
+  dest_en?: string
+  dest_sc?: string
+  eta_seq?: number
+  eta?: string | null
+  rmk?: string
+  rmk_tc?: string
+  rmk_en?: string
+  data_timestamp?: string
+}
+
+export interface StopRouteSummary {
+  co: string
+  route: string
+  service_type: number
+  dest_tc: string
+  dest_en: string
+  dir: string
+  etas: Array<string | null>
+}
+
+export interface MapStop {
+  id: string
+  stop: string
+  name_tc: string
+  name_en: string
+  lat: string
+  long: string
+  distance: number
+  companies: string[]
+  routeLabels: string[]
+  members: Array<{ stop: string; co: Company }>
+  etas: Eta[]
+}
+
+const ctbDestFromCatalog = (route: string, dir?: string) => {
+  const item = getCachedRoutes().find((candidate) => {
+    return candidate.route === route && getCompany(candidate) === 'CTB'
+  })
+  if (!item) {
+    return { dest_tc: '', dest_en: '' }
+  }
+  if (dir === 'I') {
+    return { dest_tc: item.orig_tc, dest_en: item.orig_en || '' }
+  }
+  return { dest_tc: item.dest_tc, dest_en: item.dest_en || '' }
+}
+
+const normalizeEta = (item: BatchStopEta, fallbackCo: string): Eta => {
+  const dest = ctbDestFromCatalog(item.route || '', item.dir)
+  return {
+    co: item.co || fallbackCo,
+    route: item.route || '',
+    dir: item.dir || '',
+    service_type: 1,
+    seq: Number(item.seq || 0),
+    dest_tc: item.dest_tc || dest.dest_tc || item.dest || '',
+    dest_sc: item.dest_sc || '',
+    dest_en: item.dest_en || dest.dest_en || item.dest || '',
+    eta_seq: Number(item.eta_seq || 0),
+    eta: item.eta || null,
+    rmk_tc: item.rmk_tc || item.rmk || '',
+    rmk_sc: '',
+    rmk_en: item.rmk_en || item.rmk || '',
+    data_timestamp: item.data_timestamp || '',
+  }
+}
+
 export const fetchStopEtas = async (
   stopId: string,
-  options?: { force?: boolean }
+  options?: { force?: boolean; company?: Company }
 ): Promise<Eta[]> => {
+  const company = options?.company || getStopCompany(stopId)
+
   try {
     return await cachedGet(
-      `eta:stop-eta:${stopId}`,
+      `eta:stop-eta:${company}:${stopId}`,
       async () => {
+        if (company === 'CTB') {
+          const { data } = await API.get<EtaResp>(`/batch/stop-eta/CTB/${stopId}`)
+          return (data.data || []).map((item) => normalizeEta(item, 'CTB'))
+        }
+
         const { data } = await API.get<EtaResp>(`/kmb/stop-eta/${stopId}`)
         return data.data || []
       },
@@ -423,6 +530,215 @@ export const fetchStopEtas = async (
   } catch {
     return []
   }
+}
+
+export const groupStopEtas = (etas: Eta[]): StopRouteSummary[] => {
+  const grouped = new Map<string, StopRouteSummary>()
+
+  sortEtas(etas).forEach((eta) => {
+    if (!eta.route) {
+      return
+    }
+
+    const co = eta.co || 'KMB'
+    const key = `${co}-${eta.route}-${eta.dest_tc || eta.dest_en}-${eta.service_type || 1}`
+    const existing = grouped.get(key)
+    if (existing) {
+      if (eta.eta && existing.etas.length < 3) {
+        existing.etas.push(eta.eta)
+      }
+      return
+    }
+
+    grouped.set(key, {
+      co,
+      route: eta.route,
+      service_type: eta.service_type || 1,
+      dest_tc: eta.dest_tc,
+      dest_en: eta.dest_en,
+      dir: eta.dir,
+      etas: eta.eta ? [eta.eta] : [],
+    })
+  })
+
+  return Array.from(grouped.values()).sort((a, b) => {
+    const routeOrder = sortRouteNumbers(a.route, b.route)
+    if (routeOrder !== 0) {
+      return routeOrder
+    }
+    return a.co.localeCompare(b.co)
+  })
+}
+
+const toMapStop = (stop: Stop, distance: number, etas: Eta[]): MapStop => {
+  const grouped = groupStopEtas(etas)
+  const companies = Array.from(new Set(grouped.map((item) => item.co).filter(Boolean)))
+  const routeLabels = Array.from(new Set(grouped.map((item) => item.route))).sort(sortRouteNumbers)
+  const company = getStopCompany(stop)
+
+  return {
+    id: `${company}-${stop.stop}`,
+    stop: stop.stop,
+    name_tc: stop.name_tc,
+    name_en: stop.name_en,
+    lat: stop.lat,
+    long: stop.long,
+    distance,
+    companies: companies.length ? companies : [company],
+    routeLabels,
+    members: [{ stop: stop.stop, co: company }],
+    etas,
+  }
+}
+
+const mergeMapStops = (items: MapStop[]): MapStop => {
+  const [primary] = items
+  const etas = items.flatMap((item) => item.etas)
+  const grouped = groupStopEtas(etas)
+  const companies = Array.from(new Set(grouped.map((item) => item.co).filter(Boolean)))
+
+  return {
+    ...primary,
+    id: items.map((item) => item.id).join('|'),
+    companies: companies.length ? companies : primary.companies,
+    routeLabels: Array.from(new Set(grouped.map((item) => item.route))).sort(sortRouteNumbers),
+    members: items.flatMap((item) => item.members),
+    etas,
+  }
+}
+
+const clusterMapStops = (stops: MapStop[]): MapStop[] => {
+  const remaining = [...stops].sort((a, b) => a.distance - b.distance)
+  const clusters: MapStop[] = []
+
+  while (remaining.length) {
+    const seed = remaining.shift()
+    if (!seed) {
+      break
+    }
+
+    const members = [seed]
+    for (let index = remaining.length - 1; index >= 0; index -= 1) {
+      const candidate = remaining[index]
+      const distance = haversine(
+        { latitude: Number(seed.lat), longitude: Number(seed.long) },
+        { latitude: Number(candidate.lat), longitude: Number(candidate.long) }
+      )
+      if (distance <= MAP_CLUSTER_M) {
+        members.push(candidate)
+        remaining.splice(index, 1)
+      }
+    }
+
+    clusters.push(members.length === 1 ? seed : mergeMapStops(members))
+  }
+
+  return clusters.slice(0, MAX_MAP_STOPS)
+}
+
+const stopsNearLocation = (location: GeoLocation, radius = MAP_RADIUS_M) => {
+  return getCachedStops()
+    .map((stop) => ({
+      stop,
+      distance: haversine(location, {
+        latitude: Number(stop.lat),
+        longitude: Number(stop.long),
+      }),
+    }))
+    .filter((item) => Number.isFinite(item.distance) && item.distance <= radius)
+    .sort((a, b) => a.distance - b.distance)
+}
+
+const discoverNearbyCtbStops = async (location: GeoLocation, nearbyNames: string[]): Promise<Stop[]> => {
+  const cached = getCachedStops().filter((stop) => getStopCompany(stop) === 'CTB')
+  const found = new Map<string, Stop>(cached.map((stop) => [stop.stop, stop]))
+
+  const candidates = getCachedRoutes()
+    .filter((item) => getCompany(item) === 'CTB')
+    .filter((item) => {
+      return nearbyNames.some((name) => {
+        return namesOverlap(name, item.orig_tc || '') || namesOverlap(name, item.dest_tc || '')
+      })
+    })
+    .slice(0, MAX_CTB_MAP_ROUTES)
+
+  await Promise.all(
+    candidates.map(async (item) => {
+      const destIsNearby = nearbyNames.some((name) => namesOverlap(name, item.dest_tc || ''))
+      const direction = destIsNearby && !nearbyNames.some((name) => namesOverlap(name, item.orig_tc || ''))
+        ? 'inbound'
+        : 'outbound'
+      const stops = await fetchDirectionStops(item, direction, location)
+      stops
+        .filter((stop) => Number.isFinite(stop.distance) && stop.distance <= MAP_RADIUS_M)
+        .forEach((stop) => {
+          const next: Stop = {
+            stop: stop.stop,
+            name_tc: stop.name_tc,
+            name_en: stop.name_en,
+            name_sc: '',
+            lat: stop.lat,
+            long: stop.long,
+            co: 'CTB',
+          }
+          found.set(stop.stop, next)
+          persistDiscoveredStop(next, 'CTB')
+        })
+    })
+  )
+
+  return Array.from(found.values())
+}
+
+const hydrateMapStops = async (
+  stops: Array<{ stop: Stop; distance: number }>
+): Promise<MapStop[]> => {
+  return Promise.all(
+    stops.map(async ({ stop, distance }) => {
+      const etas = await fetchStopEtas(stop.stop, { company: getStopCompany(stop) })
+      return toMapStop(stop, distance, etas)
+    })
+  )
+}
+
+export const loadNearbyMapStops = async (
+  location: GeoLocation,
+  onUpdate?: (stops: MapStop[]) => void
+): Promise<MapStop[]> => {
+  seedStopCache()
+  const nearby = stopsNearLocation(location)
+  const kmbNearby = nearby.filter((item) => getStopCompany(item.stop) === 'KMB').slice(0, MAX_MAP_STOPS)
+  const kmbStops = await hydrateMapStops(kmbNearby)
+  let clustered = clusterMapStops(kmbStops)
+  onUpdate?.(clustered)
+
+  const ctbStops = await discoverNearbyCtbStops(
+    location,
+    nearby.slice(0, MAX_NEARBY_STOPS).map((item) => item.stop.name_tc)
+  )
+  const seen = new Set(kmbStops.flatMap((item) => item.members.map((member) => `${member.co}-${member.stop}`)))
+  const ctbNearby = ctbStops
+    .map((stop) => ({
+      stop,
+      distance: haversine(location, {
+        latitude: Number(stop.lat),
+        longitude: Number(stop.long),
+      }),
+    }))
+    .filter((item) => {
+      return (
+        Number.isFinite(item.distance) &&
+        item.distance <= MAP_RADIUS_M &&
+        !seen.has(`CTB-${item.stop.stop}`)
+      )
+    })
+
+  if (ctbNearby.length) {
+    clustered = clusterMapStops(kmbStops.concat(await hydrateMapStops(ctbNearby)))
+    onUpdate?.(clustered)
+  }
+
+  return clustered
 }
 
 const toLiveFavorite = (
@@ -495,6 +811,7 @@ export const planRoutes = async (
 
   seedStopCache()
   const nearbyStops = getCachedStops()
+    .filter((stop) => getStopCompany(stop) === 'KMB')
     .map((stop) => ({
       ...stop,
       distance: haversine(location, {

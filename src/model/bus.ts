@@ -20,6 +20,7 @@ export interface Stop {
   name_sc: string
   lat: string
   long: string
+  co?: Company
 }
 
 export interface Eta {

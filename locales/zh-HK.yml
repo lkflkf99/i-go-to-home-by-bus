@@ -57,6 +57,7 @@ details:
   openingMaps: 正喺 Google 地圖開啟...
 map:
   locationOff: 請喺設定開啟位置，先可以睇附近車站。
+  noRoutes: 呢個站暫時冇巴士資料。
 place:
   nearest: 使用最近車站
   clear: 清除

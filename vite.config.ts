@@ -90,6 +90,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/\/api\/ctb\//g, ''),
       },
+      '/api/batch': {
+        target: 'https://rt.data.gov.hk/v1/transport/batch',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/\/api\/batch\//g, ''),
+      },
       '/api/kmb': {
         target: 'https://data.etabus.gov.hk/v1/transport/kmb',
         changeOrigin: true,

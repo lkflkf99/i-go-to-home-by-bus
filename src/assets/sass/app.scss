@@ -286,6 +286,81 @@ body {
   height: 100%;
 }
 
+.stop-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  filter: drop-shadow(0 6px 16px rgba(17, 24, 39, 0.16));
+}
+
+.stop-marker-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 44px;
+  max-width: 168px;
+  padding: 6px 8px;
+  background: var(--app-surface);
+  border: 0.5px solid var(--app-separator);
+  border-radius: 12px;
+}
+
+.stop-marker-cos {
+  display: flex;
+  gap: 6px;
+}
+
+.stop-marker-co {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  color: var(--el-color-primary);
+}
+
+.stop-marker-routes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.stop-marker-route {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--app-text);
+}
+
+.stop-marker-more {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--app-muted);
+}
+
+.stop-marker-arrow {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid var(--app-surface);
+  margin-top: -1px;
+}
+
+.stop-marker-pin {
+  width: 10px;
+  height: 10px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--el-color-primary);
+  border: 2px solid var(--app-surface);
+}
+
 @media (max-width: 640px) {
   .el-overlay-dialog {
     display: flex !important;

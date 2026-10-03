@@ -5,7 +5,6 @@
   <GoogleMap
     v-else
     class="map-canvas"
-    v-loading="isLoading"
     api-key="AIzaSyAd3JuKmaDu5q7FnmlvzjDb4bTd06BGAjY"
     style="width: 100%; height: 100%"
     :center="center"
@@ -16,49 +15,79 @@
       :options="{
         center,
         radius: 16,
-        strokeColor: '#409EFF',
+        strokeColor: accentColor,
         strokeOpacity: 0.8,
         strokeWeight: 3,
-        fillColor: '#409EFF',
+        fillColor: accentColor,
         fillOpacity: 0.35,
       }"
     />
-    <Marker
+    <CustomMarker
       v-for="item in nearbyStops"
-      v-bind:key="item.stop"
-      :options="{ position: { lat: Number(item.lat), lng: Number(item.long) }, label: 'KMB' }"
-      @click="() => openStopDetails(item)"
+      :key="item.id"
+      :options="{
+        position: { lat: Number(item.lat), lng: Number(item.long) },
+        anchorPoint: 'BOTTOM_CENTER',
+        zIndex: Math.round(2000 - item.distance),
+      }"
     >
-    </Marker>
+      <button class="stop-marker" type="button" @click="openStopDetails(item)">
+        <div class="stop-marker-card">
+          <div v-if="item.companies.length > 1" class="stop-marker-cos">
+            <span v-for="company in item.companies" :key="company" class="stop-marker-co">
+              {{ company }}
+            </span>
+          </div>
+          <div v-if="item.routeLabels.length" class="stop-marker-routes">
+            <span v-for="route in visibleRoutes(item)" :key="route" class="stop-marker-route">
+              {{ route }}
+            </span>
+            <span v-if="item.routeLabels.length > maxRouteChips" class="stop-marker-more">
+              +{{ item.routeLabels.length - maxRouteChips }}
+            </span>
+          </div>
+          <span v-else class="stop-marker-route">{{ item.companies[0] || 'BUS' }}</span>
+        </div>
+        <span class="stop-marker-arrow"></span>
+        <span class="stop-marker-pin"></span>
+      </button>
+    </CustomMarker>
   </GoogleMap>
   <el-dialog v-model="dialog.visible" :title="dialog.title" width="90%">
-    <ul>
+    <ul v-if="dialog.routes.length" class="settings-group">
       <li
         class="route-row"
-        v-for="(item, index) in dialog.routes"
-        :key="index"
-        @click="() => goToDetails(item, item.co || 'KMB')"
+        v-for="item in dialog.routes"
+        :key="`${item.co}-${item.route}-${item.dest_tc}-${item.dir}`"
+        @click="goToDetails(item)"
       >
         <div class="flex min-w-0 gap-x-3">
-          <div class="route-badge">{{ item.co || 'KMB' }}</div>
+          <div class="route-badge">{{ item.co }}</div>
           <div class="min-w-0 flex-auto">
             <p class="route-number">{{ item.route }}</p>
             <p class="route-meta">{{ textByLocale(item.dest_tc, item.dest_en) }}</p>
           </div>
         </div>
         <div class="eta-stack">
-          <p class="eta-primary">{{ formatEta(item.eta) }}</p>
+          <p
+            v-for="(eta, index) in item.etas.length ? item.etas : [null]"
+            :key="index"
+            :class="index === 0 ? 'eta-primary' : 'eta-secondary'"
+          >
+            {{ formatEta(eta) }}
+          </p>
         </div>
       </li>
     </ul>
+    <p v-else class="empty-state">{{ t('map.noRoutes') }}</p>
   </el-dialog>
 </template>
 
-<script setup>
-import { getCurrentLocation, formatEta, textByLocale } from '@/utils'
-import haversine from 'haversine-distance'
-import { GoogleMap, Marker, Circle } from 'vue3-google-map'
-import { fetchStopEtas } from '@/services/CommuteService'
+<script lang="ts" setup>
+import { getCurrentLocation, formatEta, textByLocale, companyForDetails } from '@/utils'
+import { GoogleMap, CustomMarker, Circle } from 'vue3-google-map'
+import { groupStopEtas, loadNearbyMapStops, fetchStopEtas } from '@/services/CommuteService'
+import type { MapStop, StopRouteSummary } from '@/services/CommuteService'
 import { useRouter } from 'vue-router'
 import { usePrefsStore } from '@/stores/prefs'
 
@@ -67,13 +96,26 @@ const prefs = usePrefsStore()
 const mapRef = ref()
 const router = useRouter()
 const isLoading = ref(true)
-const center = ref(null)
-const nearbyStops = ref([])
+const center = ref<{ lat: number; lng: number } | null>(null)
+const nearbyStops = ref<MapStop[]>([])
+const accentColor = ref('#409EFF')
+const maxRouteChips = 4
 const dialog = ref({
   title: '',
   visible: false,
-  routes: null,
+  routes: [] as StopRouteSummary[],
 })
+
+const readAccentColor = () => {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue('--el-color-primary')
+    .trim()
+  if (value) {
+    accentColor.value = value
+  }
+}
+
+const visibleRoutes = (item: MapStop) => item.routeLabels.slice(0, maxRouteChips)
 
 watch(
   () => mapRef.value?.ready,
@@ -102,24 +144,19 @@ const loadNearbyStops = async () => {
   try {
     const { latitude, longitude } = await getCurrentLocation()
     center.value = { lat: latitude, lng: longitude }
-
-    nearbyStops.value = JSON.parse(localStorage.getItem('stops') || '[]').filter((stop) => {
-      return (
-        haversine(
-          { latitude, longitude },
-          {
-            latitude: stop.lat,
-            longitude: stop.long,
-          }
-        ) <= 1000
-      )
-    })
+    isLoading.value = false
+    try {
+      await loadNearbyMapStops({ latitude, longitude }, (stops) => {
+        nearbyStops.value = stops
+      })
+    } catch {
+      nearbyStops.value = []
+    }
   } catch {
     center.value = null
     nearbyStops.value = []
+    isLoading.value = false
   }
-
-  isLoading.value = false
 }
 
 watch(
@@ -130,23 +167,34 @@ watch(
 )
 
 onMounted(() => {
+  readAccentColor()
   loadNearbyStops()
 })
 
-const openStopDetails = async (item) => {
-  const routes = await fetchStopEtas(item.stop)
-
+const openStopDetails = async (item: MapStop) => {
   dialog.value = {
     title: textByLocale(item.name_tc, item.name_en),
     visible: true,
-    routes,
+    routes: groupStopEtas(item.etas),
+  }
+
+  const fresh = await Promise.all(
+    item.members.map((member) => fetchStopEtas(member.stop, { company: member.co, force: true }))
+  )
+  if (dialog.value.title === textByLocale(item.name_tc, item.name_en)) {
+    dialog.value.routes = groupStopEtas(fresh.flat())
   }
 }
 
-const goToDetails = (routeItem, company) => {
+const goToDetails = (item: StopRouteSummary) => {
   router.push({
     name: 'Bus Stops',
-    query: { route: routeItem.route, serviceType: routeItem.service_type, company },
+    query: {
+      route: item.route,
+      serviceType: String(item.service_type || 1),
+      company: companyForDetails(item.co),
+      direction: item.dir === 'I' ? 'inbound' : 'outbound',
+    },
   })
 }
 </script>

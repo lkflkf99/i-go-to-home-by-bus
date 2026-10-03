@@ -57,6 +57,7 @@ details:
   openingMaps: Opening in Google Maps...
 map:
   locationOff: Turn on Location in Settings to see nearby stops.
+  noRoutes: No buses reported at this stop right now.
 place:
   nearest: Use nearest stop
   clear: Clear
