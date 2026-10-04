@@ -1,35 +1,31 @@
 <template>
   <div>
-    <div class="action-row">
+    <div class="action-row toolbar-row">
+      <span v-if="timetableLabel" class="action-window">{{ timetableLabel }}</span>
       <el-button
-        round
+        class="toolbar-btn"
+        circle
         plain
-        type="primary"
         :icon="Switch"
+        :aria-label="t('details.switch')"
         :disabled="isPageLoading"
         @click="handleSwitchDirection"
-      >
-        {{ t('details.switch') }}
-      </el-button>
+      />
       <el-button
-        round
+        class="toolbar-btn"
+        circle
         plain
-        type="primary"
         :icon="Refresh"
+        :aria-label="t('details.refresh')"
         :disabled="isPageLoading"
         :loading="isRefreshing"
         @click="handleRefresh"
-      >
-        {{ t('details.refresh') }}
-      </el-button>
+      />
     </div>
     <div class="action-row variant-row" v-if="visibleVariants.length > 1">
       <el-button
         v-for="variant in visibleVariants"
         :key="variantKey(variant)"
-        round
-        plain
-        type="primary"
         class="variant-chip"
         :class="{ 'is-active-filter': selectedKey === variantKey(variant) }"
         @click="selectVariant(variant)"
@@ -37,7 +33,6 @@
         {{ variantLabel(variant) }}
       </el-button>
     </div>
-    <p v-if="timetableLabel" class="filter-banner">{{ timetableLabel }}</p>
     <ul class="settings-group" v-if="isPageLoading">
       <RouteRowSkeleton v-for="index in 8" :key="index" variant="stop" :lines="1" />
     </ul>
@@ -188,19 +183,24 @@ const activeRoute = computed(() =>
 
 const shortPlaceName = (name: string) => name.split(',')[0].trim() || name
 
-const variantLabel = (variant: RouteVariant) => {
-  const dest = shortPlaceName(textByLocale(variant.dest_tc, variant.dest_en))
-  if (isCircularVariant(variant)) {
-    return t('details.circular', { name: dest })
-  }
-  return dest ? t('plan.to', { name: dest }) : t('details.special')
-}
-
 const dayLabel = (kind: ReturnType<typeof getVariantDayKind>) => {
   if (!kind) {
     return ''
   }
   return t(`details.${kind}`)
+}
+
+const variantLabel = (variant: RouteVariant) => {
+  const window = getVariantServiceWindow(variant)
+  const days = dayLabel(getVariantDayKind(variant))
+  if (window || days) {
+    return [days, window ? `${window.first}–${window.last}` : ''].filter(Boolean).join(' · ')
+  }
+  const dest = shortPlaceName(textByLocale(variant.dest_tc, variant.dest_en))
+  if (isCircularVariant(variant)) {
+    return t('details.circular', { name: dest })
+  }
+  return dest ? t('plan.to', { name: dest }) : t('details.special')
 }
 
 const timetableLabel = computed(() => {
@@ -215,13 +215,13 @@ const timetableLabel = computed(() => {
   if (!window && !days) {
     return ''
   }
-  const headway = !window
-    ? ''
-    : window.headwayMin && window.headwayMax && window.headwayMin !== window.headwayMax
-      ? t('details.everyMinRange', { min: window.headwayMin, max: window.headwayMax })
-      : window.headwayMin
-        ? t('details.everyMin', { n: window.headwayMin })
-        : ''
+  let headway = ''
+  if (window?.headwayMin) {
+    headway =
+      window.headwayMax && window.headwayMin !== window.headwayMax
+        ? t('details.everyMinRange', { min: window.headwayMin, max: window.headwayMax })
+        : t('details.everyMin', { n: window.headwayMin })
+  }
   return [
     days,
     window && !window.serving ? t('details.notRunning') : '',
@@ -416,12 +416,54 @@ watch(
 </script>
 
 <style scoped>
-.variant-row {
-  margin-top: 8px;
+.toolbar-row {
+  align-items: center;
 }
 
-.variant-chip {
-  max-width: 220px;
+.toolbar-row.action-row .toolbar-btn {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  --el-button-text-color: var(--el-color-primary);
+  --el-button-bg-color: var(--app-surface);
+  --el-button-border-color: var(--app-separator);
+  --el-button-hover-text-color: var(--el-color-primary);
+  --el-button-hover-bg-color: var(--row-active);
+  --el-button-hover-border-color: var(--app-separator);
+}
+
+.action-window {
+  flex: 1;
+  min-width: 0;
+  align-self: center;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--app-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.variant-row {
+  margin-top: 8px;
+  align-items: center;
+}
+
+.variant-row.action-row .variant-chip {
+  --el-button-bg-color: var(--app-surface);
+  --el-button-text-color: var(--app-text);
+  --el-button-border-color: var(--app-separator);
+  --el-button-hover-bg-color: var(--row-active);
+  --el-button-hover-text-color: var(--app-text);
+  --el-button-hover-border-color: var(--app-separator);
+  height: auto;
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 999px;
 }
 
 .variant-chip :deep(span) {
@@ -430,9 +472,12 @@ watch(
   white-space: nowrap;
 }
 
-.is-active-filter {
+.variant-row.action-row .variant-chip.is-active-filter {
   --el-button-bg-color: var(--el-color-primary);
   --el-button-text-color: #fff;
   --el-button-border-color: var(--el-color-primary);
+  --el-button-hover-bg-color: var(--el-color-primary);
+  --el-button-hover-text-color: #fff;
+  --el-button-hover-border-color: var(--el-color-primary);
 }
 </style>
