@@ -1,5 +1,6 @@
 import { isDark, toggleDark } from '@/composables'
 import { ref } from 'vue'
+import { syncNativeChrome } from './native'
 
 export type AppTheme = 'default' | 'blackPink'
 
@@ -21,6 +22,7 @@ export const applyTheme = (theme: AppTheme) => {
   }
 
   root.classList.add(theme)
+  syncNativeChrome()
 }
 
 export const loadTheme = () => {

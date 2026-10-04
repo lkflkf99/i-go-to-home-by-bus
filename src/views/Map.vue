@@ -8,7 +8,7 @@
     api-key="AIzaSyAd3JuKmaDu5q7FnmlvzjDb4bTd06BGAjY"
     style="width: 100%; height: 100%"
     :center="center"
-    :zoom="17"
+    :zoom="18"
     :styles="mapStyles"
     ref="mapRef"
   >
@@ -85,6 +85,10 @@
     <p v-else class="empty-state">{{ t('map.noRoutes') }}</p>
   </el-dialog>
 </template>
+
+<script lang="ts">
+export default { name: 'Map' }
+</script>
 
 <script lang="ts" setup>
 import {

@@ -65,7 +65,7 @@ interface DirectionLeg {
 
 const PLACE_RADIUS_M = 400
 const NEARBY_STOP_M = 800
-const MAP_RADIUS_M = 1000
+const MAP_RADIUS_M = 300
 const MAP_CLUSTER_M = 30
 const MAX_NEARBY_STOPS = 8
 const MAX_MAP_STOPS = 28

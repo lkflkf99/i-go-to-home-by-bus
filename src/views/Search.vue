@@ -8,7 +8,10 @@
         :prefix-icon="Search"
         readonly
         inputmode="none"
-        @focus="() => keyboardRef.open()"
+        tabindex="-1"
+        @mousedown.prevent="openKeyboard"
+        @touchstart.prevent="openKeyboard"
+        @focus="keepSystemKeyboardClosed"
       />
     </div>
 
@@ -41,6 +44,10 @@
     <Keyboard ref="keyboardRef" @change="handleInput" :letter-keys="letterKeys" />
   </div>
 </template>
+
+<script lang="ts">
+export default { name: 'Search' }
+</script>
 
 <script lang="ts" setup>
 import { Search, Star, StarFilled } from '@element-plus/icons-vue'
@@ -99,6 +106,16 @@ const loadRoute = () => {
   }
 }
 
+const openKeyboard = () => {
+  keyboardRef.value?.open()
+}
+
+const keepSystemKeyboardClosed = (event: FocusEvent) => {
+  const target = event.target as HTMLInputElement | null
+  target?.blur()
+  openKeyboard()
+}
+
 const handleInput = (val) => {
   if (val === 'back') {
     searchInput.value = searchInput.value.slice(0, -1)
@@ -112,4 +129,8 @@ const handleInput = (val) => {
 
   searchInput.value += val
 }
+
+onDeactivated(() => {
+  keyboardRef.value?.close()
+})
 </script>

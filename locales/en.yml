@@ -81,3 +81,4 @@ distance:
 keyboard:
   reset: reset
   back: back
+  done: Done

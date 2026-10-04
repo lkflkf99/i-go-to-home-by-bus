@@ -65,11 +65,20 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
+        id: '/',
         name: 'I go to home by bus',
         short_name: 'goHomeByBus',
+        description: 'Live Hong Kong bus ETAs, nearby stops, and commute planning.',
+        lang: 'en',
+        dir: 'ltr',
+        start_url: '/',
+        scope: '/',
         display: 'standalone',
+        display_override: ['standalone', 'minimal-ui'],
+        orientation: 'portrait',
         background_color: '#f2f2f7',
         theme_color: '#f2f2f7',
+        categories: ['travel', 'navigation', 'utilities'],
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -80,6 +89,12 @@ export default defineConfig({
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable',
           },
         ],
       },

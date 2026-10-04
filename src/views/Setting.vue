@@ -80,6 +80,10 @@
   />
 </template>
 
+<script lang="ts">
+export default { name: 'Settings' }
+</script>
+
 <script lang="ts" setup>
 import { format } from 'date-fns'
 import { enUS, zhHK } from 'date-fns/locale'

@@ -1,6 +1,10 @@
 import NProgress from 'nprogress'
 import { createRouter, createWebHistory } from 'vue-router'
 
+export const TAB_PATHS = ['/fav', '/route', '/plan-route', '/map', '/setting']
+
+const isTabPath = (path: string) => TAB_PATHS.includes(path)
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -41,8 +45,10 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach(() => {
-  NProgress.start()
+router.beforeEach((to, from) => {
+  if (from.name && !(isTabPath(to.path) && isTabPath(from.path))) {
+    NProgress.start()
+  }
 })
 router.afterEach(() => {
   NProgress.done()
