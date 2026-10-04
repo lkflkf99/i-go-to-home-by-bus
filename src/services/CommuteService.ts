@@ -17,8 +17,11 @@ import type {
 import {
   getCompany,
   getRouteStopFare,
+  getRouteStopMap,
   getStopCompany,
+  parseRouteCatalogKey,
   resetFareCache,
+  resetRouteStopCache,
   sortRouteNumbers,
 } from '@/utils'
 
@@ -52,8 +55,8 @@ const MAP_RADIUS_M = 1000
 const MAP_CLUSTER_M = 30
 const MAX_NEARBY_STOPS = 8
 const MAX_MAP_STOPS = 28
-const MAX_CTB_PLAN = 10
 const MAX_CTB_MAP_ROUTES = 8
+const MAX_PLAN_VIA = 12
 
 const stopDetailCache = new Map<string, Stop>()
 const ctbRoutesAtStop = new Map<string, Set<string>>()
@@ -112,6 +115,7 @@ export const resetCommuteCaches = () => {
   stopDetailCache.clear()
   ctbRoutesAtStop.clear()
   resetFareCache()
+  resetRouteStopCache()
   invalidatePrefix('route-stop:')
   invalidatePrefix('stop:')
   invalidatePrefix('eta:')
@@ -860,7 +864,8 @@ const namesOverlap = (a: string, b: string) => {
 
 export const planRoutes = async (
   location: GeoLocation,
-  destQuery: string
+  destQuery: string,
+  destPlace?: SavedPlace | null
 ): Promise<PlannedRoute[]> => {
   const query = destQuery.trim().toLowerCase()
   if (!query) {
@@ -869,7 +874,6 @@ export const planRoutes = async (
 
   seedStopCache()
   const nearbyStops = getCachedStops()
-    .filter((stop) => getStopCompany(stop) === 'KMB')
     .map((stop) => ({
       ...stop,
       distance: haversine(location, {
@@ -877,13 +881,14 @@ export const planRoutes = async (
         longitude: Number(stop.long),
       }),
     }))
-    .filter((stop) => stop.distance <= NEARBY_STOP_M)
+    .filter((stop) => Number.isFinite(stop.distance) && stop.distance <= NEARBY_STOP_M)
     .sort((a, b) => a.distance - b.distance)
-    .slice(0, MAX_NEARBY_STOPS)
 
-  const nearbyNames = nearbyStops.map((stop) => stop.name_tc)
+  const nearbyKmb = nearbyStops
+    .filter((stop) => getStopCompany(stop) === 'KMB')
+    .slice(0, MAX_NEARBY_STOPS)
   const kmbResults = await Promise.all(
-    nearbyStops.map(async (stop) => {
+    nearbyKmb.map(async (stop) => {
       const etas = await fetchStopEtas(stop.stop)
       return etas
         .filter((eta) => {
@@ -949,61 +954,102 @@ export const planRoutes = async (
     )
   })
 
-  let ctbRoutes: BusRoute[] = []
-  try {
-    ctbRoutes = JSON.parse(localStorage.getItem('routes') || '[]').filter(
-      (item: BusRoute) => getCompany(item) === 'CTB'
-    )
-  } catch {
-    ctbRoutes = []
+  const destIds = new Set(
+    getCachedStops()
+      .filter((stop) => {
+        return (
+          includesQuery(stop.name_tc, query) ||
+          includesQuery(stop.name_en, query) ||
+          includesQuery(stop.name_sc, query)
+        )
+      })
+      .map((stop) => stop.stop)
+  )
+  if (destPlace?.stop) {
+    destIds.add(destPlace.stop)
   }
+  const nearbyById = new Map(nearbyStops.map((stop) => [stop.stop, stop]))
+  const viaMatches: PlannedRoute[] = []
 
-  const ctbMatches = ctbRoutes
-    .filter((item) => {
-      const destMatch =
-        includesQuery(item.dest_tc, query) ||
-        includesQuery(item.dest_en, query) ||
-        includesQuery(item.orig_tc, query) ||
-        includesQuery(item.orig_en, query)
-      const origNear = nearbyNames.some((name) => namesOverlap(name, item.orig_tc || ''))
-      return destMatch && origNear
-    })
-    .slice(0, MAX_CTB_PLAN)
-
-  await Promise.all(
-    ctbMatches.map(async (item) => {
-      const destIsOrig = includesQuery(item.orig_tc, query) || includesQuery(item.orig_en, query)
-      const direction = destIsOrig ? 'inbound' : 'outbound'
-      const stops = await fetchDirectionStops(item, direction, location)
-      const board = nearestStop(stops)
-      if (!board || board.distance > NEARBY_STOP_M) {
+  if (destIds.size && nearbyById.size) {
+    Object.entries(getRouteStopMap()).forEach(([key, stopIds]) => {
+      const parsed = parseRouteCatalogKey(key)
+      if (!parsed) {
         return
       }
 
-      const dest = direction === 'inbound' ? item.orig_tc : item.dest_tc
-      const destEn = direction === 'inbound' ? item.orig_en : item.dest_en
-      const key = `CTB-${item.route}-${dest}`
-      if (planned.has(key)) {
+      let boardIdx = -1
+      let destIdx = -1
+      for (let index = 0; index < stopIds.length; index += 1) {
+        const stopId = stopIds[index]
+        if (boardIdx < 0 && nearbyById.has(stopId)) {
+          boardIdx = index
+        }
+        if (boardIdx >= 0 && index > boardIdx && destIds.has(stopId)) {
+          destIdx = index
+          break
+        }
+      }
+      if (boardIdx < 0 || destIdx < 0) {
         return
       }
 
-      const etas = await fetchEtas(item, board.stop, direction === 'inbound' ? 'I' : 'O')
-      planned.set(key, {
-        route: item.route,
-        service_type: item.service_type || 1,
-        co: 'CTB',
-        dest_tc: dest,
-        dest_en: destEn,
-        orig_tc: direction === 'inbound' ? item.dest_tc : item.orig_tc,
-        orig_en: direction === 'inbound' ? item.dest_en : item.orig_en,
+      const board = nearbyById.get(stopIds[boardIdx])
+      const destStop =
+        stopDetailCache.get(stopIds[destIdx]) ||
+        (destPlace && destPlace.stop === stopIds[destIdx] ? destPlace : undefined)
+      if (!board || !destStop) {
+        return
+      }
+
+      const direction = parsed.bound === 'I' ? 'inbound' : 'outbound'
+      viaMatches.push({
+        route: parsed.route,
+        service_type: parsed.service_type,
+        co: parsed.co,
+        dest_tc: destStop.name_tc,
+        dest_en: destStop.name_en,
+        orig_tc: board.name_tc,
+        orig_en: board.name_en,
         boardStopName: board.name_tc,
         boardStopNameEn: board.name_en,
         boardStopId: board.stop,
-        walkDistance: Number.isFinite(board.distance) ? board.distance : null,
+        walkDistance: board.distance,
         direction,
-        etas,
-        fare: board.fare || null,
+        etas: [],
+        fare: getRouteStopFare(
+          { route: parsed.route, service_type: parsed.service_type, co: parsed.co },
+          direction,
+          board.stop
+        ),
       })
+    })
+  }
+
+  const viaToFetch = viaMatches
+    .sort((a, b) => (a.walkDistance ?? Infinity) - (b.walkDistance ?? Infinity))
+    .slice(0, MAX_PLAN_VIA)
+
+  await Promise.all(
+    viaToFetch.map(async (item) => {
+      const key = `${item.co}-${item.route}-${item.dest_tc}`
+      const existing = planned.get(key)
+      if (existing && (existing.walkDistance ?? Infinity) <= (item.walkDistance ?? Infinity)) {
+        return
+      }
+
+      const etas = await fetchEtas(
+        {
+          route: item.route,
+          service_type: item.service_type,
+          co: item.co,
+          orig_tc: '',
+          dest_tc: '',
+        },
+        item.boardStopId,
+        item.direction === 'inbound' ? 'I' : 'O'
+      )
+      planned.set(key, { ...item, etas })
     })
   )
 

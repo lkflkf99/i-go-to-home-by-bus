@@ -1,9 +1,10 @@
 import API from '@/services/ApiService'
 import { CATALOG_TTL_MS } from '@/services/HttpCache'
 import { getCachedStops, resetCommuteCaches } from '@/services/CommuteService'
-import { getStopCompany, saveRouteFares } from '@/utils'
+import { getRouteStopMap, getStopCompany, saveRouteFares, saveRouteStops } from '@/utils'
 import type { Stop } from '@/model'
 import type { RouteFareMap } from '@/utils/fare'
+import type { RouteStopMap } from '@/utils/routeStops'
 
 const HKBUS_DB_URL = 'https://data.hkbus.app/routeFareList.min.json'
 const HKBUS_TIMEOUT_MS = 45000
@@ -129,6 +130,35 @@ const toRouteFares = (db: HkbusDb): RouteFareMap => {
   return table
 }
 
+const toRouteStops = (db: HkbusDb): RouteStopMap => {
+  const table: RouteStopMap = {}
+
+  Object.values(db.routeList || {}).forEach((route) => {
+    if (!route.route) {
+      return
+    }
+
+    const serviceType = String(route.serviceType || 1)
+    ;(['kmb', 'ctb'] as const).forEach((company) => {
+      if (!(route.co || []).includes(company)) {
+        return
+      }
+
+      const stops = route.stops?.[company] || []
+      if (!stops.length) {
+        return
+      }
+
+      boundsFor(route.bound?.[company]).forEach((bound) => {
+        const key = `${company.toUpperCase()}-${route.route}-${serviceType}-${bound}`
+        table[key] = stops
+      })
+    })
+  })
+
+  return table
+}
+
 const fetchHkbusCatalog = async () => {
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), HKBUS_TIMEOUT_MS)
@@ -146,9 +176,24 @@ const fetchHkbusCatalog = async () => {
     return {
       ctbStops: toCtbStops(db),
       fares: toRouteFares(db),
+      routeStops: toRouteStops(db),
     }
   } finally {
     window.clearTimeout(timer)
+  }
+}
+
+export const ensureHkbusRouteIndex = async () => {
+  if (Object.keys(getRouteStopMap()).length) {
+    return
+  }
+
+  const hkbus = await fetchHkbusCatalog()
+  if (hkbus.fares && Object.keys(hkbus.fares).length) {
+    saveRouteFares(hkbus.fares)
+  }
+  if (hkbus.routeStops && Object.keys(hkbus.routeStops).length) {
+    saveRouteStops(hkbus.routeStops)
   }
 }
 
@@ -167,6 +212,9 @@ export const fetchBusData = async () => {
 
   if (hkbus?.fares && Object.keys(hkbus.fares).length) {
     saveRouteFares(hkbus.fares)
+  }
+  if (hkbus?.routeStops && Object.keys(hkbus.routeStops).length) {
+    saveRouteStops(hkbus.routeStops)
   }
 
   localStorage.setItem('stops', JSON.stringify(kmbStopsTagged.concat(ctbStops)))

@@ -7,7 +7,28 @@
         clearable
         :placeholder="t('plan.placeholder')"
       />
+      <div class="action-row plan-quick">
+        <el-button
+          round
+          plain
+          type="primary"
+          :class="{ 'is-active-filter': quickDest === 'home' }"
+          @click="quickSearch('home')"
+        >
+          {{ t('fav.goHome') }}
+        </el-button>
+        <el-button
+          round
+          plain
+          type="primary"
+          :class="{ 'is-active-filter': quickDest === 'work' }"
+          @click="quickSearch('work')"
+        >
+          {{ t('fav.goWork') }}
+        </el-button>
+      </div>
       <p class="filter-banner">{{ originLabel }}</p>
+      <p v-if="destBanner" class="filter-banner">{{ destBanner }}</p>
     </div>
 
     <ul class="settings-group" v-if="isLoading">
@@ -62,16 +83,23 @@
 </template>
 
 <script lang="ts" setup>
+import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
-import type { PlannedRoute } from '@/model'
+import type { PlannedRoute, SavedPlace } from '@/model'
 import { formatEta, formatFare, formatMeters, getCurrentLocationOrNull, textByLocale } from '@/utils'
+import { useCommuteStore } from '@/stores/commute'
 import { usePrefsStore } from '@/stores/prefs'
 import { planRoutes } from '@/services/CommuteService'
+import { ensureHkbusRouteIndex } from '@/services/BusService'
+
+type QuickDest = 'home' | 'work' | null
 
 const { t } = useI18n()
 const router = useRouter()
+const store = useCommuteStore()
 const prefs = usePrefsStore()
 const destQuery = ref('')
+const quickDest = ref<QuickDest>(null)
 const isLoading = ref(false)
 const errorMessage = ref('')
 const results = ref<PlannedRoute[]>([])
@@ -80,6 +108,48 @@ let searchGen = 0
 const originLabel = computed(() =>
   prefs.locationEnabled ? t('plan.usingLocation') : t('plan.locationOff')
 )
+
+const destPlace = computed<SavedPlace | null>(() => {
+  if (quickDest.value === 'home') {
+    return store.homePlace
+  }
+  if (quickDest.value === 'work') {
+    return store.workPlace
+  }
+  return null
+})
+
+const destBanner = computed(() => {
+  if (quickDest.value === 'home' && store.homePlace) {
+    return t('fav.goingHome', { name: textByLocale(store.homePlace.name_tc, store.homePlace.name_en) })
+  }
+  if (quickDest.value === 'work' && store.workPlace) {
+    return t('fav.goingWork', { name: textByLocale(store.workPlace.name_tc, store.workPlace.name_en) })
+  }
+  return ''
+})
+
+const placeName = (place: SavedPlace) => textByLocale(place.name_tc, place.name_en)
+
+const quickSearch = (next: 'home' | 'work') => {
+  const place = next === 'home' ? store.homePlace : store.workPlace
+  if (!place) {
+    ElMessage.info({
+      message: next === 'home' ? t('fav.setHomeFirst') : t('fav.setWorkFirst'),
+    })
+    return
+  }
+
+  if (quickDest.value === next) {
+    quickDest.value = null
+    destQuery.value = ''
+    return
+  }
+
+  quickDest.value = next
+  destQuery.value = placeName(place)
+  search(destQuery.value)
+}
 
 const goToDetails = (item: PlannedRoute) => {
   router.push({
@@ -117,7 +187,12 @@ const search = async (query: string) => {
     return
   }
 
-  const nextResults = await planRoutes(location, dest)
+  await ensureHkbusRouteIndex().catch(() => undefined)
+  if (gen !== searchGen) {
+    return
+  }
+
+  const nextResults = await planRoutes(location, dest, destPlace.value)
   if (gen !== searchGen) {
     return
   }
@@ -129,6 +204,14 @@ const search = async (query: string) => {
 debouncedWatch(
   destQuery,
   (value) => {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      quickDest.value = null
+    } else if (quickDest.value === 'home' && store.homePlace && trimmed !== placeName(store.homePlace)) {
+      quickDest.value = null
+    } else if (quickDest.value === 'work' && store.workPlace && trimmed !== placeName(store.workPlace)) {
+      quickDest.value = null
+    }
     search(value)
   },
   { debounce: 400 }
@@ -143,3 +226,15 @@ watch(
   }
 )
 </script>
+
+<style scoped>
+.plan-quick {
+  margin-top: 8px;
+}
+
+.is-active-filter {
+  --el-button-bg-color: var(--el-color-primary);
+  --el-button-text-color: #fff;
+  --el-button-border-color: var(--el-color-primary);
+}
+</style>
