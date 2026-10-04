@@ -523,10 +523,21 @@ html.blackPink .stop-marker-pin {
 
 
 .el-message {
-  width: calc(100% - 32px) !important;
-  left: 16px !important;
+  box-sizing: border-box;
+  min-width: 0 !important;
+  width: min(
+    calc(100vw - 32px - var(--safe-left) - var(--safe-right)),
+    420px
+  ) !important;
+  max-width: calc(100vw - 32px - var(--safe-left) - var(--safe-right));
+  left: 50% !important;
   top: calc(12px + var(--safe-top)) !important;
   border-radius: 12px;
+}
+
+.el-message__content {
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .el-drawer {
