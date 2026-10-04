@@ -190,16 +190,12 @@ const containsNow = (window: { start: number; end: number }, minutes: number) =>
   )
 }
 
-export const getRouteServiceWindow = (
-  route: Pick<BusRoute, 'route' | 'service_type' | 'co'>,
-  direction: 'inbound' | 'outbound' | 'I' | 'O'
-): ServiceWindow | null => {
-  const store = readStore()
-  const freq = store.routes[metaKey(route, direction)]?.freq
+export const serviceWindowFromFreq = (freq?: RouteFreq | null): ServiceWindow | null => {
   if (!freq || !Object.keys(freq).length) {
     return null
   }
 
+  const store = readStore()
   const { now, merged } = todaysSlots(freq, store.serviceDayMap, store.holidays)
   const windows = slotWindows(merged)
   if (!windows.length) {
@@ -225,6 +221,62 @@ export const getRouteServiceWindow = (
     headwayMin: intervals[0] ?? null,
     headwayMax: intervals.length ? intervals[intervals.length - 1] : null,
   }
+}
+
+export type ServiceDayKind = 'weekdays' | 'weekend' | 'saturday' | 'sundayHoliday' | 'daily' | ''
+
+export const describeServiceDays = (freq?: RouteFreq | null): ServiceDayKind => {
+  if (!freq || !Object.keys(freq).length) {
+    return ''
+  }
+
+  const dayMap = readStore().serviceDayMap
+  let weekday = false
+  let saturday = false
+  let sundayHoliday = false
+
+  Object.keys(freq).forEach((key) => {
+    const flags = dayMap[key]
+    if (!flags) {
+      weekday = true
+      saturday = true
+      sundayHoliday = true
+      return
+    }
+    if (flags[0] === '1') {
+      sundayHoliday = true
+    }
+    if (flags.slice(1, 6).some((flag) => flag === '1')) {
+      weekday = true
+    }
+    if (flags[6] === '1') {
+      saturday = true
+    }
+  })
+
+  if (weekday && (saturday || sundayHoliday)) {
+    return 'daily'
+  }
+  if (weekday) {
+    return 'weekdays'
+  }
+  if (saturday && sundayHoliday) {
+    return 'weekend'
+  }
+  if (saturday) {
+    return 'saturday'
+  }
+  if (sundayHoliday) {
+    return 'sundayHoliday'
+  }
+  return ''
+}
+
+export const getRouteServiceWindow = (
+  route: Pick<BusRoute, 'route' | 'service_type' | 'co'>,
+  direction: 'inbound' | 'outbound' | 'I' | 'O'
+): ServiceWindow | null => {
+  return serviceWindowFromFreq(readStore().routes[metaKey(route, direction)]?.freq)
 }
 
 export const isRouteServingNow = (

@@ -1,12 +1,14 @@
 <template>
-  <ul class="settings-group" v-if="isPageLoading">
-    <li class="route-row" v-for="index in 8" :key="index">
-      <el-skeleton :rows="2" animated />
-    </li>
-  </ul>
-  <div v-else>
+  <div>
     <div class="action-row">
-      <el-button round plain type="primary" :icon="Switch" @click="handleSwitchDirection">
+      <el-button
+        round
+        plain
+        type="primary"
+        :icon="Switch"
+        :disabled="isPageLoading"
+        @click="handleSwitchDirection"
+      >
         {{ t('details.switch') }}
       </el-button>
       <el-button
@@ -14,14 +16,32 @@
         plain
         type="primary"
         :icon="Refresh"
+        :disabled="isPageLoading"
         :loading="isRefreshing"
         @click="handleRefresh"
       >
         {{ t('details.refresh') }}
       </el-button>
     </div>
+    <div class="action-row variant-row" v-if="visibleVariants.length > 1">
+      <el-button
+        v-for="variant in visibleVariants"
+        :key="variantKey(variant)"
+        round
+        plain
+        type="primary"
+        class="variant-chip"
+        :class="{ 'is-active-filter': selectedKey === variantKey(variant) }"
+        @click="selectVariant(variant)"
+      >
+        {{ variantLabel(variant) }}
+      </el-button>
+    </div>
     <p v-if="timetableLabel" class="filter-banner">{{ timetableLabel }}</p>
-    <ul class="settings-group">
+    <ul class="settings-group" v-if="isPageLoading">
+      <RouteRowSkeleton v-for="index in 8" :key="index" variant="stop" :lines="1" />
+    </ul>
+    <ul class="settings-group" v-else>
       <li
         class="route-row"
         v-for="(stop, index) in displayStops"
@@ -83,11 +103,21 @@ import {
   formatEta,
   formatFare,
   formatMeters,
+  getCompany,
   getRouteServiceWindow,
+  getRouteVariants,
+  getVariantDayKind,
+  getVariantServiceWindow,
+  isCircularVariant,
+  pickRouteVariant,
   textByLocale,
+  toVariantRoute,
+  variantKey,
+  variantsForDirection,
 } from '@/utils'
+import type { RouteVariant } from '@/utils/routeVariants'
 import { usePrefsStore } from '@/stores/prefs'
-import { loadRouteEtas, loadRouteStops } from '@/services/CommuteService'
+import { loadRouteEtas, loadRouteStops, loadStopsByIds } from '@/services/CommuteService'
 import { ensureHkbusRouteIndex } from '@/services/BusService'
 import type { GeoLocation, ResolvedStop } from '@/services/CommuteService'
 import type { BusRoute, Eta } from '@/model'
@@ -116,6 +146,8 @@ interface DisplayStops {
 const { t } = useI18n()
 const prefs = usePrefsStore()
 const displayStops = ref<DisplayStops[]>([])
+const allVariants = ref<RouteVariant[]>([])
+const selectedVariant = ref<RouteVariant | null>(null)
 const route = useRoute()
 const isPageLoading = ref(false)
 const isRefreshing = ref(false)
@@ -139,31 +171,61 @@ const routeFromQuery = (): BusRoute | null => {
 
   return {
     route: String(query.route),
-    service_type: String(query.serviceType || 1),
+    service_type: String(query.serviceType || selectedVariant.value?.service_type || 1),
     co: company,
-    orig_tc: '',
-    dest_tc: '',
+    orig_tc: selectedVariant.value?.orig_tc || '',
+    dest_tc: selectedVariant.value?.dest_tc || '',
+    orig_en: selectedVariant.value?.orig_en || '',
+    dest_en: selectedVariant.value?.dest_en || '',
   }
 }
 
+const visibleVariants = computed(() => variantsForDirection(allVariants.value, getDirection()))
+const selectedKey = computed(() => (selectedVariant.value ? variantKey(selectedVariant.value) : ''))
+const activeRoute = computed(() =>
+  selectedVariant.value ? toVariantRoute(selectedVariant.value) : routeFromQuery()
+)
+
+const shortPlaceName = (name: string) => name.split(',')[0].trim() || name
+
+const variantLabel = (variant: RouteVariant) => {
+  const dest = shortPlaceName(textByLocale(variant.dest_tc, variant.dest_en))
+  if (isCircularVariant(variant)) {
+    return t('details.circular', { name: dest })
+  }
+  return dest ? t('plan.to', { name: dest }) : t('details.special')
+}
+
+const dayLabel = (kind: ReturnType<typeof getVariantDayKind>) => {
+  if (!kind) {
+    return ''
+  }
+  return t(`details.${kind}`)
+}
+
 const timetableLabel = computed(() => {
-  const busRoute = routeFromQuery()
+  const busRoute = activeRoute.value
   if (!busRoute) {
     return ''
   }
-  const window = getRouteServiceWindow(busRoute, getDirection())
-  if (!window) {
+  const window = selectedVariant.value
+    ? getVariantServiceWindow(selectedVariant.value)
+    : getRouteServiceWindow(busRoute, getDirection())
+  const days = selectedVariant.value ? dayLabel(getVariantDayKind(selectedVariant.value)) : ''
+  if (!window && !days) {
     return ''
   }
-  const headway =
-    window.headwayMin && window.headwayMax && window.headwayMin !== window.headwayMax
+  const headway = !window
+    ? ''
+    : window.headwayMin && window.headwayMax && window.headwayMin !== window.headwayMax
       ? t('details.everyMinRange', { min: window.headwayMin, max: window.headwayMax })
       : window.headwayMin
         ? t('details.everyMin', { n: window.headwayMin })
         : ''
   return [
-    window.serving ? '' : t('details.notRunning'),
-    t('details.firstLast', { first: window.first, last: window.last }),
+    days,
+    window && !window.serving ? t('details.notRunning') : '',
+    window ? t('details.firstLast', { first: window.first, last: window.last }) : '',
     headway,
   ]
     .filter(Boolean)
@@ -247,7 +309,7 @@ const handleViewTrafficCamClick = (camData?: TrafficCam) => {
 }
 
 const refreshEtas = async (force = false) => {
-  const busRoute = routeFromQuery()
+  const busRoute = activeRoute.value
   if (!busRoute || !displayStops.value.length) {
     return
   }
@@ -274,7 +336,19 @@ const refreshEtas = async (force = false) => {
   }
 }
 
-const fetchDetails = async () => {
+const loadStopsFor = async (
+  variant: RouteVariant | null,
+  busRoute: BusRoute,
+  location: GeoLocation | null
+) => {
+  const direction = getDirection()
+  const stops = variant?.stopIds.length
+    ? await loadStopsByIds(toVariantRoute(variant), direction, variant.stopIds, location)
+    : await loadRouteStops(busRoute, direction, location)
+  displayStops.value = stops.map((stop) => toDisplayStop(stop))
+}
+
+const fetchDetails = async (keepVariant = false) => {
   const busRoute = routeFromQuery()
   if (!busRoute) {
     return
@@ -284,8 +358,32 @@ const fetchDetails = async () => {
   try {
     await ensureHkbusRouteIndex().catch(() => undefined)
     const currLocation = await getCurrentLocationOrNull()
-    const stops = await loadRouteStops(busRoute, getDirection(), currLocation)
-    displayStops.value = stops.map((stop) => toDisplayStop(stop))
+    allVariants.value = getRouteVariants(getCompany(busRoute), busRoute.route)
+    const directional = variantsForDirection(allVariants.value, getDirection())
+    const currentKey = selectedVariant.value ? variantKey(selectedVariant.value) : ''
+    const next = keepVariant
+      ? directional.find((item) => variantKey(item) === currentKey) ||
+        pickRouteVariant(directional, selectedVariant.value?.service_type || busRoute.service_type)
+      : pickRouteVariant(directional, busRoute.service_type)
+    selectedVariant.value = next
+    await loadStopsFor(next, busRoute, currLocation)
+  } finally {
+    isPageLoading.value = false
+  }
+  await refreshEtas(false)
+}
+
+const selectVariant = async (variant: RouteVariant) => {
+  if (selectedKey.value === variantKey(variant) || isPageLoading.value) {
+    return
+  }
+
+  selectedVariant.value = variant
+  const busRoute = toVariantRoute(variant)
+  isPageLoading.value = true
+  try {
+    const currLocation = await getCurrentLocationOrNull()
+    await loadStopsFor(variant, busRoute, currLocation)
   } finally {
     isPageLoading.value = false
   }
@@ -294,7 +392,7 @@ const fetchDetails = async () => {
 
 const handleSwitchDirection = () => {
   isOutbound.value = !isOutbound.value
-  fetchDetails()
+  fetchDetails(true)
 }
 
 const handleRefresh = () => {
@@ -316,3 +414,25 @@ watch(
   }
 )
 </script>
+
+<style scoped>
+.variant-row {
+  margin-top: 8px;
+}
+
+.variant-chip {
+  max-width: 220px;
+}
+
+.variant-chip :deep(span) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.is-active-filter {
+  --el-button-bg-color: var(--el-color-primary);
+  --el-button-text-color: #fff;
+  --el-button-border-color: var(--el-color-primary);
+}
+</style>

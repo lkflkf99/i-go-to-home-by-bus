@@ -12,9 +12,7 @@
     </div>
 
     <ul class="settings-group" v-if="isLoading">
-      <li class="route-row" v-for="index in 4" :key="index">
-        <el-skeleton :rows="2" animated />
-      </li>
+      <RouteRowSkeleton v-for="index in 4" :key="index" variant="route" :lines="2" />
     </ul>
 
     <p v-else-if="errorMessage" class="empty-state">{{ errorMessage }}</p>

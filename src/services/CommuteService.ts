@@ -33,6 +33,7 @@ import {
   resetCatalogCache,
   resetFareCache,
   resetRouteStopCache,
+  resetRouteVariants,
   resetTimetableCache,
   routeKey,
   scaleJourneyMinutes,
@@ -121,6 +122,7 @@ export const resetCommuteCaches = () => {
   resetCatalogCache()
   resetFareCache()
   resetRouteStopCache()
+  resetRouteVariants()
   resetTimetableCache()
   localStorage.removeItem('stopAliases')
   invalidatePrefix('route-stop:')
@@ -325,6 +327,25 @@ const withFares = (
 }
 
 export const loadRouteStops = fetchDirectionStops
+
+export const loadStopsByIds = async (
+  route: BusRoute,
+  direction: 'inbound' | 'outbound',
+  stopIds: string[],
+  location: GeoLocation | null
+): Promise<ResolvedStop[]> => {
+  seedStopCache()
+  const company = getCompany(route)
+  const resolved = (
+    await Promise.all(
+      stopIds.map((stopId, index) =>
+        resolveStop(company, { route: route.route, stop: stopId, seq: index + 1 })
+      )
+    )
+  ).filter((item): item is ResolvedStop => !!item)
+
+  return withFares(route, direction, withDistance(resolved, location))
+}
 
 const nearestStop = (stops: ResolvedStop[]) => {
   if (!stops.length) {

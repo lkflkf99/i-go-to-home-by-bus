@@ -4,12 +4,15 @@ import {
   getCachedStops,
   getRouteStopMap,
   getStopCompany,
+  hasRouteVariants,
   hasTimetableData,
   saveCatalog,
   saveRouteFares,
   saveRouteStops,
   saveRouteTimetable,
+  saveRouteVariants,
 } from '@/utils'
+import type { RouteVariantMap } from '@/utils/routeVariants'
 import type { Stop } from '@/model'
 import type { RouteFareMap } from '@/utils/fare'
 import type { RouteStopMap } from '@/utils/routeStops'
@@ -23,9 +26,16 @@ interface HkbusStop {
   name?: { en?: string; zh?: string }
 }
 
+interface HkbusName {
+  en?: string
+  zh?: string
+}
+
 interface HkbusRoute {
   route?: string
   co?: string[]
+  orig?: HkbusName
+  dest?: HkbusName
   serviceType?: string | number
   bound?: Record<string, string>
   fares?: string[]
@@ -92,6 +102,7 @@ const indexHkbusDb = (db: HkbusDb) => {
   const fares: RouteFareMap = {}
   const routeStops: RouteStopMap = {}
   const timetable: RouteTimetableMap = {}
+  const variants: RouteVariantMap = {}
 
   Object.values(db.routeList || {}).forEach((route) => {
     if (!route.route) {
@@ -103,6 +114,8 @@ const indexHkbusDb = (db: HkbusDb) => {
     const fareList = route.fares || []
     const jt = route.jt != null && route.jt !== '' ? Number(route.jt) : null
     const freq = route.freq && Object.keys(route.freq).length ? route.freq : undefined
+    const orig = route.orig || {}
+    const dest = route.dest || {}
 
     ;(['kmb', 'ctb'] as const).forEach((company) => {
       if (!companies.includes(company)) {
@@ -128,9 +141,30 @@ const indexHkbusDb = (db: HkbusDb) => {
         })
       }
 
-      boundsFor(route.bound?.[company]).forEach((bound) => {
-        const key = `${company.toUpperCase()}-${route.route}-${serviceType}-${bound}`
-        routeStops[key] = stops
+      const companyCode = company.toUpperCase() as 'KMB' | 'CTB'
+      const rawBound = route.bound?.[company]
+      const variantBound = rawBound === 'I' || rawBound === 'O' || rawBound === 'OI' ? rawBound : null
+      if (variantBound) {
+        const group = `${companyCode}-${route.route}`
+        variants[group] = (variants[group] || []).concat({
+          co: companyCode,
+          route: route.route,
+          service_type: serviceType,
+          bound: variantBound,
+          orig_tc: orig.zh || '',
+          orig_en: orig.en || '',
+          dest_tc: dest.zh || '',
+          dest_en: dest.en || '',
+          stopIds: stops,
+          ...(freq ? { freq } : {}),
+          ...(jt != null && Number.isFinite(jt) ? { jt } : {}),
+        })
+      }
+
+      boundsFor(rawBound).forEach((bound) => {
+        const key = `${companyCode}-${route.route}-${serviceType}-${bound}`
+        const existing = routeStops[key] || []
+        routeStops[key] = existing.concat(stops.filter((stopId) => !existing.includes(stopId)))
         if (fareList.length) {
           fares[key] = { ...(fares[key] || {}), ...byStop }
         }
@@ -156,6 +190,7 @@ const indexHkbusDb = (db: HkbusDb) => {
     ctbStops,
     fares,
     routeStops,
+    variants,
     timetable: {
       holidays: db.holidays || [],
       serviceDayMap: db.serviceDayMap || {},
@@ -167,6 +202,7 @@ const indexHkbusDb = (db: HkbusDb) => {
 const persistHkbusIndex = (hkbus: {
   fares: RouteFareMap
   routeStops: RouteStopMap
+  variants?: RouteVariantMap
   timetable: { holidays: string[]; serviceDayMap: ServiceDayMap; routes: RouteTimetableMap }
 }) => {
   if (Object.keys(hkbus.fares).length) {
@@ -174,6 +210,9 @@ const persistHkbusIndex = (hkbus: {
   }
   if (Object.keys(hkbus.routeStops).length) {
     saveRouteStops(hkbus.routeStops)
+  }
+  if (hkbus.variants && Object.keys(hkbus.variants).length) {
+    saveRouteVariants(hkbus.variants)
   }
   if (Object.keys(hkbus.timetable.routes).length) {
     saveRouteTimetable(hkbus.timetable)
@@ -202,7 +241,7 @@ const fetchHkbusCatalog = async () => {
 
 export const ensureHkbusRouteIndex = async () => {
   localStorage.removeItem('stopAliases')
-  if (Object.keys(getRouteStopMap()).length && hasTimetableData()) {
+  if (Object.keys(getRouteStopMap()).length && hasTimetableData() && hasRouteVariants()) {
     return
   }
 

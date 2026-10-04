@@ -299,6 +299,74 @@ html.is-app-keyboard .app-content {
   padding-top: 2px;
 }
 
+.route-skel {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+}
+
+.el-skeleton__item.route-skel-badge {
+  width: 28px;
+  height: 10px;
+  margin-top: 6px;
+}
+
+.el-skeleton__item.route-skel-title,
+.el-skeleton__item.route-skel-meta {
+  display: block;
+}
+
+.el-skeleton__item.route-skel-title {
+  height: 20px;
+  width: 52px;
+}
+
+.el-skeleton__item.route-skel-title.is-stop {
+  height: 16px;
+  width: 68%;
+}
+
+.el-skeleton__item.route-skel-meta {
+  height: 12px;
+  width: 78%;
+  margin-top: 8px;
+}
+
+.el-skeleton__item.route-skel-title.is-stop + .el-skeleton__item.route-skel-meta {
+  width: 72px;
+}
+
+.route-row:nth-child(2n) .el-skeleton__item.route-skel-title.is-route {
+  width: 40px;
+}
+
+.route-row:nth-child(3n) .el-skeleton__item.route-skel-title.is-stop {
+  width: 52%;
+}
+
+.el-skeleton__item.route-skel-title.is-route + .el-skeleton__item.route-skel-meta + .el-skeleton__item.route-skel-meta,
+.route-row:nth-child(2n) .el-skeleton__item.route-skel-title.is-route + .el-skeleton__item.route-skel-meta {
+  width: 64%;
+}
+
+.eta-skeleton {
+  width: 52px;
+}
+
+.el-skeleton__item.eta-skeleton-primary {
+  height: 16px;
+  width: 48px;
+}
+
+.el-skeleton__item.eta-skeleton-secondary {
+  height: 12px;
+  width: 36px;
+  margin-top: 6px;
+  margin-left: auto;
+}
+
 .eta-primary {
   font-size: 16px;
   font-weight: 700;

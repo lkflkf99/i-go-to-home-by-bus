@@ -60,6 +60,13 @@ details:
   everyMin: every {n} min
   everyMinRange: every {min}–{max} min
   notRunning: Not running now
+  circular: '{name} (circular)'
+  weekdays: Weekdays
+  weekend: Weekends & holidays
+  saturday: Saturdays
+  sundayHoliday: Sundays & holidays
+  daily: Daily
+  special: Special
 map:
   locationOff: Turn on Location in Settings to see nearby stops.
   noRoutes: No buses reported at this stop right now.

@@ -6,6 +6,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     Keyboard: typeof import('./components/Keyboard.vue')['default']
     PlacePicker: typeof import('./components/PlacePicker.vue')['default']
+    RouteRowSkeleton: typeof import('./components/RouteRowSkeleton.vue')['default']
   }
 }
 

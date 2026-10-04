@@ -60,6 +60,13 @@ details:
   everyMin: 每 {n} 分鐘一班
   everyMinRange: 每 {min}–{max} 分鐘一班
   notRunning: 而家冇開呢班
+  circular: '{name}（循環）'
+  weekdays: 平日
+  weekend: 週末及假期
+  saturday: 星期六
+  sundayHoliday: 星期日及假期
+  daily: 每日
+  special: 特別班次
 map:
   locationOff: 請喺設定開啟位置，先可以睇附近車站。
   noRoutes: 呢個站暫時冇巴士資料。

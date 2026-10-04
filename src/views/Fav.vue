@@ -45,6 +45,11 @@
               {{ textByLocale(item.orig_tc, item.orig_en) }} - {{ textByLocale(item.dest_tc, item.dest_en) }}
             </p>
             <p v-if="stopMeta(item)" class="route-meta">{{ stopMeta(item) }}</p>
+            <el-skeleton v-else-if="item.etasLoading" animated>
+              <template #template>
+                <el-skeleton-item variant="text" class="route-skel-meta" />
+              </template>
+            </el-skeleton>
           </div>
         </div>
         <div class="eta-stack">
@@ -294,21 +299,4 @@ onMounted(() => {
   --el-button-bg-color: var(--el-color-primary);
   --el-button-text-color: #fff;
   --el-button-border-color: var(--el-color-primary);
-}
-
-.eta-skeleton {
-  width: 52px;
-}
-
-.eta-skeleton-primary {
-  height: 16px;
-  width: 48px;
-}
-
-.eta-skeleton-secondary {
-  height: 12px;
-  width: 36px;
-  margin-top: 6px;
-  margin-left: auto;
-}
-</style>
+}</style>
