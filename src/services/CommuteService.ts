@@ -425,9 +425,14 @@ const pickLeg = (legs: DirectionLeg[], place: SavedPlace | null): DirectionLeg |
   })
 }
 
+const withEtaTime = (etas: Eta[]) => {
+  return etas.filter((item) => item.eta)
+}
+
 const upcomingEtas = (etas: Eta[], dirCode: 'I' | 'O') => {
-  return etas
-    .filter((item) => item.dir === dirCode && item.eta)
+  const withTime = withEtaTime(etas)
+  const matched = withTime.filter((item) => item.dir === dirCode)
+  return (matched.length ? matched : withTime)
     .sort((a, b) => String(a.eta).localeCompare(String(b.eta)))
     .slice(0, 2)
     .map((item) => item.eta)
@@ -435,6 +440,21 @@ const upcomingEtas = (etas: Eta[], dirCode: 'I' | 'O') => {
 
 const sortEtas = (etas: Eta[]) => {
   return [...etas].sort((a, b) => String(a.eta || '').localeCompare(String(b.eta || '')))
+}
+
+// Citybus circulars (e.g. 48) flip dir mid-loop and reuse stop IDs.
+// Prefer the journey that matches this visit's seq; otherwise keep dir, then any ETA.
+const pickCtbStopEtas = (etas: Eta[], stopSeq: number, dirCode: 'I' | 'O') => {
+  const withTime = withEtaTime(etas)
+  const bySeq = withTime.filter((item) => item.seq === stopSeq)
+  if (bySeq.length) {
+    return sortEtas(bySeq)
+  }
+  const byDir = withTime.filter((item) => item.dir === dirCode)
+  if (byDir.length) {
+    return sortEtas(byDir)
+  }
+  return sortEtas(withTime)
 }
 
 const etaCacheKey = (route: Pick<BusRoute, 'route' | 'co' | 'service_type'>, stopId: string) => {
@@ -518,7 +538,7 @@ export const loadRouteEtas = async (
   const entries = await Promise.all(
     stops.map(async (stop) => {
       const etas = await fetchEtaList(route, stop.stop, options)
-      return [stop.seq, sortEtas(etas.filter((item) => item.dir === dirCode))] as const
+      return [stop.seq, pickCtbStopEtas(etas, stop.seq, dirCode)] as const
     })
   )
 
