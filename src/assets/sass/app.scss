@@ -361,6 +361,30 @@ body {
   border: 2px solid var(--app-surface);
 }
 
+html.dark .stop-marker,
+html.blackPink .stop-marker {
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.65));
+}
+
+html.dark .stop-marker-card,
+html.blackPink .stop-marker-card {
+  background: #3a3a3c;
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+html.dark .stop-marker-arrow,
+html.blackPink .stop-marker-arrow {
+  border-top-color: #3a3a3c;
+}
+
+html.dark .stop-marker-pin,
+html.blackPink .stop-marker-pin {
+  width: 12px;
+  height: 12px;
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--el-color-primary) 45%, transparent);
+}
+
 @media (max-width: 640px) {
   .el-overlay-dialog {
     display: flex !important;

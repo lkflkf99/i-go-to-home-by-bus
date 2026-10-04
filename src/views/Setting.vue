@@ -84,10 +84,9 @@
 import { format } from 'date-fns'
 import { enUS, zhHK } from 'date-fns/locale'
 import { fetchBusData } from '@/services/BusService'
-import { toggleDark, isDark } from '@/composables'
 import { useCommuteStore } from '@/stores/commute'
 import { usePrefsStore } from '@/stores/prefs'
-import { textByLocale } from '@/utils'
+import { applyTheme, textByLocale } from '@/utils'
 import PlacePicker from '@/components/PlacePicker.vue'
 
 const { t } = useI18n()
@@ -129,17 +128,6 @@ const handleUpdateDB = async () => {
 
 const handleChangeTheme = () => {
   dialog.value.visible = false
-  localStorage.setItem('theme', dialog.value.model)
-  const root = document.getElementsByTagName('html')[0]
-
-  if (dialog.value.model === 'blackPink' && !isDark.value) {
-    root.classList.remove('default')
-    toggleDark()
-  } else if (dialog.value.model === 'default' && isDark.value) {
-    root.classList.remove('blackPink')
-    toggleDark()
-  }
-
-  root.classList.add(dialog.value.model)
+  applyTheme(dialog.value.model === 'blackPink' ? 'blackPink' : 'default')
 }
 </script>

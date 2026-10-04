@@ -9,6 +9,7 @@
     style="width: 100%; height: 100%"
     :center="center"
     :zoom="17"
+    :styles="mapStyles"
     ref="mapRef"
   >
     <Circle
@@ -86,7 +87,15 @@
 </template>
 
 <script lang="ts" setup>
-import { getCurrentLocation, formatEta, formatFare, textByLocale, companyForDetails } from '@/utils'
+import {
+  getCurrentLocation,
+  formatEta,
+  formatFare,
+  textByLocale,
+  companyForDetails,
+  appTheme,
+  buildMapStyles,
+} from '@/utils'
 import { GoogleMap, CustomMarker, Circle } from 'vue3-google-map'
 import { groupStopEtas, loadNearbyMapStops, fetchStopEtas } from '@/services/CommuteService'
 import type { MapStop, StopRouteSummary } from '@/services/CommuteService'
@@ -102,6 +111,7 @@ const center = ref<{ lat: number; lng: number } | null>(null)
 const nearbyStops = ref<MapStop[]>([])
 const accentColor = ref('#409EFF')
 const maxRouteChips = 4
+const mapStyles = computed(() => buildMapStyles(appTheme.value))
 const dialog = ref({
   title: '',
   visible: false,
@@ -119,19 +129,23 @@ const readAccentColor = () => {
 
 const visibleRoutes = (item: MapStop) => item.routeLabels.slice(0, maxRouteChips)
 
-watch(
-  () => mapRef.value?.ready,
-  (ready) => {
-    if (!ready) return
+const applyMapOptions = () => {
+  const map = mapRef.value?.map
+  if (!mapRef.value?.ready || !map) return
 
-    mapRef.value.map.setOptions({
-      zoomControl: false,
-      streetViewControl: false,
-      fullscreenControl: false,
-      mapTypeControl: false,
-    })
-  }
-)
+  map.setOptions({
+    zoomControl: false,
+    streetViewControl: false,
+    fullscreenControl: false,
+    mapTypeControl: false,
+    clickableIcons: false,
+    keyboardShortcuts: false,
+    styles: mapStyles.value,
+    backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--app-bg').trim() || '#f2f2f7',
+  })
+}
+
+watch([() => mapRef.value?.ready, mapStyles], applyMapOptions)
 
 const loadNearbyStops = async () => {
   if (!prefs.locationEnabled) {
@@ -167,6 +181,10 @@ watch(
     loadNearbyStops()
   }
 )
+
+watch(appTheme, () => {
+  readAccentColor()
+})
 
 onMounted(() => {
   readAccentColor()
