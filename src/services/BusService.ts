@@ -4,19 +4,16 @@ import {
   getCachedStops,
   getRouteStopMap,
   getStopCompany,
-  hasStopAliases,
   hasTimetableData,
   saveCatalog,
   saveRouteFares,
   saveRouteStops,
   saveRouteTimetable,
-  saveStopAliases,
 } from '@/utils'
 import type { Stop } from '@/model'
 import type { RouteFareMap } from '@/utils/fare'
 import type { RouteStopMap } from '@/utils/routeStops'
 import type { RouteFreq, RouteTimetableMap, ServiceDayMap } from '@/utils/timetable'
-import type { StopAliasMap } from '@/utils/stopAliases'
 
 const HKBUS_DB_URL = 'https://data.hkbus.app/routeFareList.min.json'
 const HKBUS_TIMEOUT_MS = 45000
@@ -42,7 +39,6 @@ interface HkbusDb {
   serviceDayMap?: ServiceDayMap
   routeList?: Record<string, HkbusRoute>
   stopList?: Record<string, HkbusStop>
-  stopMap?: Record<string, Array<[string, string] | Record<string, string>>>
 }
 
 export const isCatalogStale = () => {
@@ -88,63 +84,6 @@ const boundsFor = (bound?: string) => {
     return [bound] as const
   }
   return []
-}
-
-const linkAliases = (aliases: StopAliasMap, a: string, b: string) => {
-  if (!a || !b || a === b) {
-    return
-  }
-  aliases[a] = Array.from(new Set((aliases[a] || []).concat(b)))
-  aliases[b] = Array.from(new Set((aliases[b] || []).concat(a)))
-}
-
-const companyOfStop = (stopId: string, hinted?: string) => {
-  const hintedCo = (hinted || '').toLowerCase()
-  if (hintedCo === 'kmb' || hintedCo === 'ctb') {
-    return hintedCo
-  }
-  return /^\d{6}$/.test(stopId) ? 'ctb' : 'kmb'
-}
-
-const toStopAliases = (stopMap: HkbusDb['stopMap'] = {}) => {
-  const aliases: StopAliasMap = {}
-
-  Object.entries(stopMap).forEach(([stopId, peers]) => {
-    const kmb = new Set<string>()
-    const ctb = new Set<string>()
-    const add = (id: string, company?: string) => {
-      if (!id) {
-        return
-      }
-      if (companyOfStop(id, company) === 'ctb') {
-        ctb.add(id)
-      } else {
-        kmb.add(id)
-      }
-    }
-
-    add(stopId)
-    const list = Array.isArray(peers) ? peers : peers ? [peers] : []
-    list.forEach((peer) => {
-      if (Array.isArray(peer) && peer.length >= 2) {
-        add(String(peer[1]), String(peer[0]))
-        return
-      }
-      if (peer && typeof peer === 'object') {
-        Object.entries(peer).forEach(([company, id]) => {
-          if (typeof id === 'string') {
-            add(id, company)
-          }
-        })
-      }
-    })
-
-    kmb.forEach((kmbId) => {
-      ctb.forEach((ctbId) => linkAliases(aliases, kmbId, ctbId))
-    })
-  })
-
-  return aliases
 }
 
 const indexHkbusDb = (db: HkbusDb) => {
@@ -222,7 +161,6 @@ const indexHkbusDb = (db: HkbusDb) => {
       serviceDayMap: db.serviceDayMap || {},
       routes: timetable,
     },
-    stopAliases: toStopAliases(db.stopMap),
   }
 }
 
@@ -230,7 +168,6 @@ const persistHkbusIndex = (hkbus: {
   fares: RouteFareMap
   routeStops: RouteStopMap
   timetable: { holidays: string[]; serviceDayMap: ServiceDayMap; routes: RouteTimetableMap }
-  stopAliases: StopAliasMap
 }) => {
   if (Object.keys(hkbus.fares).length) {
     saveRouteFares(hkbus.fares)
@@ -241,13 +178,7 @@ const persistHkbusIndex = (hkbus: {
   if (Object.keys(hkbus.timetable.routes).length) {
     saveRouteTimetable(hkbus.timetable)
   }
-  try {
-    if (Object.keys(hkbus.stopAliases).length) {
-      saveStopAliases(hkbus.stopAliases)
-    }
-  } catch {
-    // localStorage quota — map clustering still has the 30 m fallback
-  }
+  localStorage.removeItem('stopAliases')
 }
 
 const fetchHkbusCatalog = async () => {
@@ -270,7 +201,8 @@ const fetchHkbusCatalog = async () => {
 }
 
 export const ensureHkbusRouteIndex = async () => {
-  if (Object.keys(getRouteStopMap()).length && hasTimetableData() && hasStopAliases()) {
+  localStorage.removeItem('stopAliases')
+  if (Object.keys(getRouteStopMap()).length && hasTimetableData()) {
     return
   }
 

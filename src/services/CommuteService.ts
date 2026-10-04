@@ -16,7 +16,6 @@ import type {
 } from '@/model'
 import {
   addCachedStop,
-  expandStopIds,
   getCachedCtbRoute,
   getCachedRoutes,
   getCachedStops,
@@ -33,13 +32,11 @@ import {
   resetCatalogCache,
   resetFareCache,
   resetRouteStopCache,
-  resetStopAliasCache,
   resetTimetableCache,
   routeKey,
   scaleJourneyMinutes,
   sortRouteNumbers,
   stopMatchesQuery,
-  stopsSharePole,
 } from '@/utils'
 
 export interface GeoLocation {
@@ -124,7 +121,7 @@ export const resetCommuteCaches = () => {
   resetFareCache()
   resetRouteStopCache()
   resetTimetableCache()
-  resetStopAliasCache()
+  localStorage.removeItem('stopAliases')
   invalidatePrefix('route-stop:')
   invalidatePrefix('stop:')
   invalidatePrefix('eta:')
@@ -683,7 +680,7 @@ const clusterMapStops = (stops: MapStop[]): MapStop[] => {
         { latitude: Number(seed.lat), longitude: Number(seed.long) },
         { latitude: Number(candidate.lat), longitude: Number(candidate.long) }
       )
-      if (distance <= MAP_CLUSTER_M || stopsSharePole(seed.stop, candidate.stop)) {
+      if (distance <= MAP_CLUSTER_M) {
         members.push(candidate)
         remaining.splice(index, 1)
       }
@@ -958,12 +955,14 @@ export const planRoutes = async (
     )
   })
 
-  const destIds = expandStopIds(
+  const destIds = new Set(
     getCachedStops()
       .filter((stop) => stopMatchesQuery(stop, query))
       .map((stop) => stop.stop)
-      .concat(destPlace?.stop ? [destPlace.stop] : [])
   )
+  if (destPlace?.stop) {
+    destIds.add(destPlace.stop)
+  }
   const nearbyById = new Map(nearbyStops.map((stop) => [stop.stop, stop]))
   const viaMatches: PlannedRoute[] = []
   const routeStops = getRouteStopMap()
@@ -1002,7 +1001,7 @@ export const planRoutes = async (
         const board = nearbyById.get(stopIds[boardIdx])
         const destStop =
           stopDetailCache.get(stopIds[destIdx]) ||
-          (destPlace && expandStopIds([destPlace.stop]).has(stopIds[destIdx]) ? destPlace : undefined)
+          (destPlace && destPlace.stop === stopIds[destIdx] ? destPlace : undefined)
         if (!board || !destStop) {
           return
         }
