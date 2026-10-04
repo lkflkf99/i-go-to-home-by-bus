@@ -46,6 +46,19 @@ export const includesQuery = (value: string | undefined, query: string) => {
   return !!value && value.toLowerCase().includes(query)
 }
 
+const STOP_BAY_CODE = /\s*\([A-Za-z]{1,3}\d{2,4}\)\s*$/
+const STOP_ALIGHTING = /\s*\(\s*(?:ALIGHTING(?:\s+STOP)?|落客站)\s*\)\s*$/i
+
+export const normalizeStopName = (name = '') => {
+  let next = name.trim()
+  let prev = ''
+  while (next && next !== prev) {
+    prev = next
+    next = next.replace(STOP_ALIGHTING, '').replace(STOP_BAY_CODE, '').trim()
+  }
+  return next
+}
+
 export const stopMatchesQuery = (
   stop: Pick<Stop, 'name_tc' | 'name_en'> & { name_sc?: string },
   query: string

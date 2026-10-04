@@ -7,26 +7,6 @@
         clearable
         :placeholder="t('plan.placeholder')"
       />
-      <div class="action-row plan-quick">
-        <el-button
-          round
-          plain
-          type="primary"
-          :class="{ 'is-active-filter': quickDest === 'home' }"
-          @click="quickSearch('home')"
-        >
-          {{ t('fav.goHome') }}
-        </el-button>
-        <el-button
-          round
-          plain
-          type="primary"
-          :class="{ 'is-active-filter': quickDest === 'work' }"
-          @click="quickSearch('work')"
-        >
-          {{ t('fav.goWork') }}
-        </el-button>
-      </div>
       <p class="filter-banner">{{ originLabel }}</p>
       <p v-if="destBanner" class="filter-banner">{{ destBanner }}</p>
     </div>
@@ -138,26 +118,6 @@ const destBanner = computed(() => {
 })
 
 const placeName = (place: SavedPlace) => textByLocale(place.name_tc, place.name_en)
-
-const quickSearch = (next: 'home' | 'work') => {
-  const place = next === 'home' ? store.homePlace : store.workPlace
-  if (!place) {
-    ElMessage.info({
-      message: next === 'home' ? t('fav.setHomeFirst') : t('fav.setWorkFirst'),
-    })
-    return
-  }
-
-  if (quickDest.value === next) {
-    quickDest.value = null
-    destQuery.value = ''
-    return
-  }
-
-  quickDest.value = next
-  destQuery.value = placeName(place)
-  search(destQuery.value)
-}
 
 const goToDetails = (item: PlannedRoute) => {
   router.push({

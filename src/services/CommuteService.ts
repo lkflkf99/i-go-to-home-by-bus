@@ -28,6 +28,7 @@ import {
   getStopCompany,
   includesQuery,
   isRouteServingNow,
+  normalizeStopName,
   parseRouteCatalogKey,
   resetCatalogCache,
   resetFareCache,
@@ -129,11 +130,31 @@ export const resetCommuteCaches = () => {
 
 const toPlace = (stop: Stop): SavedPlace => ({
   stop: stop.stop,
-  name_tc: stop.name_tc,
-  name_en: stop.name_en,
+  name_tc: normalizeStopName(stop.name_tc),
+  name_en: normalizeStopName(stop.name_en),
   lat: stop.lat,
   long: stop.long,
 })
+
+const compactPlaceName = (name: string) => name.toLowerCase().replace(/[\s.,()（）]/g, '')
+
+const isSameNamedPlace = (a: SavedPlace, b: SavedPlace) => {
+  const sameName =
+    (a.name_tc === b.name_tc && a.name_en === b.name_en) ||
+    (!!compactPlaceName(a.name_tc) && compactPlaceName(a.name_tc) === compactPlaceName(b.name_tc)) ||
+    (!!compactPlaceName(a.name_en) && compactPlaceName(a.name_en) === compactPlaceName(b.name_en))
+
+  if (!sameName) {
+    return false
+  }
+
+  return (
+    haversine(
+      { latitude: Number(a.lat), longitude: Number(a.long) },
+      { latitude: Number(b.lat), longitude: Number(b.long) }
+    ) <= PLACE_RADIUS_M
+  )
+}
 
 export const searchStops = (query: string, limit = 30): SavedPlace[] => {
   const q = query.trim().toLowerCase()
@@ -141,10 +162,23 @@ export const searchStops = (query: string, limit = 30): SavedPlace[] => {
     return []
   }
 
-  return getCachedStops()
-    .filter((stop) => stopMatchesQuery(stop, q))
-    .slice(0, limit)
-    .map(toPlace)
+  const results: SavedPlace[] = []
+  for (const stop of getCachedStops()) {
+    if (!stopMatchesQuery(stop, q)) {
+      continue
+    }
+
+    const place = toPlace(stop)
+    if (results.some((existing) => isSameNamedPlace(existing, place))) {
+      continue
+    }
+
+    results.push(place)
+    if (results.length >= limit) {
+      break
+    }
+  }
+  return results
 }
 
 export const findNearestStop = (location: GeoLocation): SavedPlace | null => {

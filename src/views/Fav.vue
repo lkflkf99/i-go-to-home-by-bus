@@ -30,17 +30,11 @@
       {{ t('fav.empty') }}
     </p>
 
-    <ul class="settings-group" v-else-if="isPageLoading">
-      <li class="route-row" v-for="index in store.favRoutes.length || 3" :key="index">
-        <el-skeleton :rows="2" animated />
-      </li>
-    </ul>
-
     <ul class="settings-group" v-else>
       <li
         class="route-row"
         v-for="item in visibleFavorites"
-        :key="`${item.co}-${item.route}-${item.service_type}-${item.direction}`"
+        :key="routeKey(item)"
         @click="goToDetails(item)"
       >
         <div class="flex min-w-0 gap-x-3">
@@ -50,17 +44,7 @@
             <p class="route-meta">
               {{ textByLocale(item.orig_tc, item.orig_en) }} - {{ textByLocale(item.dest_tc, item.dest_en) }}
             </p>
-            <p class="route-meta">
-              {{
-                [
-                  textByLocale(item.nearestStopName, item.nearestStopNameEn),
-                  item.nearestDistance !== null ? formatMeters(item.nearestDistance) : '',
-                  formatFare(item.fare),
-                ]
-                  .filter(Boolean)
-                  .join(' · ')
-              }}
-            </p>
+            <p v-if="stopMeta(item)" class="route-meta">{{ stopMeta(item) }}</p>
           </div>
         </div>
         <div class="eta-stack">
@@ -69,13 +53,21 @@
               <StarFilled />
             </el-icon>
           </button>
-          <p
-            v-for="(eta, index) in displayEtas(item.etas)"
-            :key="index"
-            :class="index === 0 ? 'eta-primary' : 'eta-secondary'"
-          >
-            {{ formatEta(eta) }}
-          </p>
+          <el-skeleton v-if="item.etasLoading" animated class="eta-skeleton">
+            <template #template>
+              <el-skeleton-item variant="text" class="eta-skeleton-primary" />
+              <el-skeleton-item variant="text" class="eta-skeleton-secondary" />
+            </template>
+          </el-skeleton>
+          <template v-else>
+            <p
+              v-for="(eta, index) in displayEtas(item.etas)"
+              :key="index"
+              :class="index === 0 ? 'eta-primary' : 'eta-secondary'"
+            >
+              {{ formatEta(eta) }}
+            </p>
+          </template>
         </div>
       </li>
       <li v-if="commuteFilter && !visibleFavorites.length" class="route-row">
@@ -95,22 +87,48 @@ export default { name: 'Favorites' }
 import { ElMessage } from 'element-plus'
 import { Refresh, StarFilled } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import type { LiveFavorite, SavedPlace } from '@/model'
+import type { BusRoute, LiveFavorite, SavedPlace } from '@/model'
 import { useCommuteStore } from '@/stores/commute'
 import { usePrefsStore } from '@/stores/prefs'
-import { formatEta, formatFare, formatMeters, getCurrentLocationOrNull, textByLocale } from '@/utils'
+import {
+  formatEta,
+  formatFare,
+  formatMeters,
+  getCompany,
+  getCurrentLocationOrNull,
+  routeKey,
+  textByLocale,
+  withCompany,
+} from '@/utils'
 import { loadLiveFavorite, refreshFavoriteEtas } from '@/services/CommuteService'
 
 type CommuteFilter = 'home' | 'work' | null
+type DisplayFavorite = LiveFavorite & { etasLoading: boolean }
+
+function toPlaceholder(route: BusRoute): DisplayFavorite {
+  return {
+    ...withCompany(route),
+    co: getCompany(route),
+    nearestStopName: '',
+    nearestStopNameEn: '',
+    nearestStopId: '',
+    nearestDistance: null,
+    direction: route.bound === 'I' ? 'inbound' : 'outbound',
+    etas: [],
+    servesPlace: true,
+    fare: null,
+    etasLoading: true,
+  }
+}
 
 const { t } = useI18n()
 const router = useRouter()
 const store = useCommuteStore()
 const prefs = usePrefsStore()
-const isPageLoading = ref(false)
 const isRefreshing = ref(false)
 const commuteFilter = ref<CommuteFilter>(null)
-const liveFavorites = ref<LiveFavorite[]>([])
+const liveFavorites = ref<DisplayFavorite[]>(store.favRoutes.map(toPlaceholder))
+let loadGen = 0
 
 const targetPlace = computed<SavedPlace | null>(() => {
   if (commuteFilter.value === 'home') {
@@ -123,11 +141,24 @@ const targetPlace = computed<SavedPlace | null>(() => {
 })
 
 const visibleFavorites = computed(() => {
-  if (!commuteFilter.value) {
+  if (!commuteFilter.value || liveFavorites.value.some((item) => item.etasLoading)) {
     return liveFavorites.value
   }
   return liveFavorites.value.filter((item) => item.servesPlace)
 })
+
+const stopMeta = (item: DisplayFavorite) => {
+  if (item.etasLoading) {
+    return ''
+  }
+  return [
+    textByLocale(item.nearestStopName, item.nearestStopNameEn),
+    item.nearestDistance !== null ? formatMeters(item.nearestDistance) : '',
+    formatFare(item.fare),
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
 
 const filterBanner = computed(() => {
   if (commuteFilter.value === 'home' && store.homePlace) {
@@ -155,30 +186,61 @@ const goToDetails = (item: LiveFavorite) => {
   })
 }
 
-const loadLive = async () => {
+const loadLive = async (resetEtas = false) => {
+  const gen = ++loadGen
   if (!store.favRoutes.length) {
     liveFavorites.value = []
     return
   }
 
-  isPageLoading.value = true
+  const existing = new Map(liveFavorites.value.map((item) => [routeKey(item), item]))
+  liveFavorites.value = store.favRoutes.map((route) => {
+    const current = existing.get(routeKey(route))
+    if (!current) {
+      return toPlaceholder(route)
+    }
+    return resetEtas ? { ...current, etasLoading: true } : current
+  })
+
   const location = await getCurrentLocationOrNull()
+  if (gen !== loadGen) {
+    return
+  }
 
   const results = await Promise.all(
-    store.favRoutes.map((route) => loadLiveFavorite(route, location, targetPlace.value))
+    store.favRoutes.map(async (route) => {
+      const live = {
+        ...(await loadLiveFavorite(route, location, targetPlace.value)),
+        etasLoading: false,
+      }
+      if (gen !== loadGen) {
+        return live
+      }
+      liveFavorites.value = liveFavorites.value.map((item) =>
+        routeKey(item) === routeKey(route) ? live : item
+      )
+      return live
+    })
   )
+  if (gen !== loadGen) {
+    return
+  }
   liveFavorites.value = results
-  isPageLoading.value = false
 }
 
 const handleRefresh = async () => {
-  if (!liveFavorites.value.length) {
+  if (!liveFavorites.value.length || liveFavorites.value.some((item) => item.etasLoading)) {
     await loadLive()
     return
   }
 
   isRefreshing.value = true
-  liveFavorites.value = await Promise.all(liveFavorites.value.map((item) => refreshFavoriteEtas(item)))
+  liveFavorites.value = await Promise.all(
+    liveFavorites.value.map(async (item) => ({
+      ...(await refreshFavoriteEtas(item)),
+      etasLoading: false,
+    }))
+  )
   isRefreshing.value = false
 }
 
@@ -192,7 +254,7 @@ const toggleFilter = async (next: 'home' | 'work') => {
   }
 
   commuteFilter.value = commuteFilter.value === next ? null : next
-  await loadLive()
+  await loadLive(true)
 }
 
 watch(
@@ -205,14 +267,18 @@ watch(
 watch(
   () => prefs.locationEnabled,
   () => {
-    loadLive()
+    loadLive(true)
   }
 )
 
 const visibility = useDocumentVisibility()
 
 useIntervalFn(() => {
-  if (visibility.value !== 'visible' || !store.favRoutes.length || isPageLoading.value) {
+  if (
+    visibility.value !== 'visible' ||
+    !store.favRoutes.length ||
+    liveFavorites.value.some((item) => item.etasLoading)
+  ) {
     return
   }
   handleRefresh()
@@ -228,5 +294,21 @@ onMounted(() => {
   --el-button-bg-color: var(--el-color-primary);
   --el-button-text-color: #fff;
   --el-button-border-color: var(--el-color-primary);
+}
+
+.eta-skeleton {
+  width: 52px;
+}
+
+.eta-skeleton-primary {
+  height: 16px;
+  width: 48px;
+}
+
+.eta-skeleton-secondary {
+  height: 12px;
+  width: 36px;
+  margin-top: 6px;
+  margin-left: auto;
 }
 </style>
