@@ -51,8 +51,15 @@
               {{ textByLocale(item.orig_tc, item.orig_en) }} - {{ textByLocale(item.dest_tc, item.dest_en) }}
             </p>
             <p class="route-meta">
-              {{ textByLocale(item.nearestStopName, item.nearestStopNameEn) }}
-              <span v-if="item.nearestDistance !== null"> · {{ formatMeters(item.nearestDistance) }}</span>
+              {{
+                [
+                  textByLocale(item.nearestStopName, item.nearestStopNameEn),
+                  item.nearestDistance !== null ? formatMeters(item.nearestDistance) : '',
+                  formatFare(item.fare),
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+              }}
             </p>
           </div>
         </div>
@@ -87,7 +94,7 @@ import { useRouter } from 'vue-router'
 import type { LiveFavorite, SavedPlace } from '@/model'
 import { useCommuteStore } from '@/stores/commute'
 import { usePrefsStore } from '@/stores/prefs'
-import { formatEta, formatMeters, getCurrentLocationOrNull, textByLocale } from '@/utils'
+import { formatEta, formatFare, formatMeters, getCurrentLocationOrNull, textByLocale } from '@/utils'
 import { loadLiveFavorite, refreshFavoriteEtas } from '@/services/CommuteService'
 
 type CommuteFilter = 'home' | 'work' | null

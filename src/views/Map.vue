@@ -65,7 +65,9 @@
           <div class="route-badge">{{ item.co }}</div>
           <div class="min-w-0 flex-auto">
             <p class="route-number">{{ item.route }}</p>
-            <p class="route-meta">{{ textByLocale(item.dest_tc, item.dest_en) }}</p>
+            <p class="route-meta">
+              {{ [textByLocale(item.dest_tc, item.dest_en), formatFare(item.fare)].filter(Boolean).join(' · ') }}
+            </p>
           </div>
         </div>
         <div class="eta-stack">
@@ -84,7 +86,7 @@
 </template>
 
 <script lang="ts" setup>
-import { getCurrentLocation, formatEta, textByLocale, companyForDetails } from '@/utils'
+import { getCurrentLocation, formatEta, formatFare, textByLocale, companyForDetails } from '@/utils'
 import { GoogleMap, CustomMarker, Circle } from 'vue3-google-map'
 import { groupStopEtas, loadNearbyMapStops, fetchStopEtas } from '@/services/CommuteService'
 import type { MapStop, StopRouteSummary } from '@/services/CommuteService'
@@ -175,14 +177,14 @@ const openStopDetails = async (item: MapStop) => {
   dialog.value = {
     title: textByLocale(item.name_tc, item.name_en),
     visible: true,
-    routes: groupStopEtas(item.etas),
+    routes: groupStopEtas(item.etas, item.stop),
   }
 
   const fresh = await Promise.all(
     item.members.map((member) => fetchStopEtas(member.stop, { company: member.co, force: true }))
   )
   if (dialog.value.title === textByLocale(item.name_tc, item.name_en)) {
-    dialog.value.routes = groupStopEtas(fresh.flat())
+    dialog.value.routes = groupStopEtas(fresh.flat(), item.stop)
   }
 }
 

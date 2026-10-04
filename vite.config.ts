@@ -11,6 +11,17 @@ import Inspect from 'vite-plugin-inspect'
 import VueI18n from '@intlify/vite-plugin-vue-i18n'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const sanitizeProxyHeaders = (proxy: {
+  on: (event: string, listener: (proxyReq: { removeHeader: (name: string) => void; setHeader: (name: string, value: string) => void }) => void) => void
+}) => {
+  proxy.on('proxyReq', (proxyReq) => {
+    proxyReq.removeHeader('origin')
+    proxyReq.removeHeader('referer')
+    proxyReq.removeHeader('access-control-allow-origin')
+    proxyReq.setHeader('accept', 'application/json')
+  })
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
@@ -86,19 +97,22 @@ export default defineConfig({
     https: false,
     proxy: {
       '/api/ctb': {
-        target: 'https://rt.data.gov.hk/v2/transport/citybus',
+        target: 'https://rt.data.gov.hk/v1/transport/citybus-nwfb',
         changeOrigin: true,
         rewrite: (path) => path.replace(/\/api\/ctb\//g, ''),
+        configure: sanitizeProxyHeaders,
       },
       '/api/batch': {
         target: 'https://rt.data.gov.hk/v1/transport/batch',
         changeOrigin: true,
         rewrite: (path) => path.replace(/\/api\/batch\//g, ''),
+        configure: sanitizeProxyHeaders,
       },
       '/api/kmb': {
         target: 'https://data.etabus.gov.hk/v1/transport/kmb',
         changeOrigin: true,
         rewrite: (path) => path.replace(/\/api\/kmb\//g, ''),
+        configure: sanitizeProxyHeaders,
       },
     },
   },

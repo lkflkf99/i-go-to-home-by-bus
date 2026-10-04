@@ -37,8 +37,8 @@
             >
               {{ textByLocale(stop.stop_tc, stop.stop_en) }}
             </p>
-            <p v-if="formatMeters(stop?.distance)" class="route-meta">
-              {{ formatMeters(stop?.distance) }}
+            <p v-if="stopMeta(stop)" class="route-meta">
+              {{ stopMeta(stop) }}
             </p>
             <el-button
               class="mt-2"
@@ -76,7 +76,7 @@ import { useRoute } from 'vue-router'
 import haversine from 'haversine-distance'
 import { ElLoading } from 'element-plus'
 import { Switch, Refresh } from '@element-plus/icons-vue'
-import { getCurrentLocationOrNull, isIOS, formatEta, formatMeters, textByLocale } from '@/utils'
+import { getCurrentLocationOrNull, isIOS, formatEta, formatFare, formatMeters, textByLocale } from '@/utils'
 import { usePrefsStore } from '@/stores/prefs'
 import { loadRouteEtas, loadRouteStops } from '@/services/CommuteService'
 import type { GeoLocation, ResolvedStop } from '@/services/CommuteService'
@@ -99,6 +99,7 @@ interface DisplayStops {
   long: string
   eta: Eta[]
   distance: number
+  fare?: string | null
   camData?: TrafficCam
 }
 
@@ -154,8 +155,13 @@ const toDisplayStop = (stop: ResolvedStop, eta: Eta[] = []): DisplayStops => ({
   long: stop.long,
   eta,
   distance: Number.isFinite(stop.distance) ? stop.distance : Number.NaN,
+  fare: stop.fare || null,
   camData: findCam(stop.lat, stop.long),
 })
+
+const stopMeta = (stop: DisplayStops) => {
+  return [formatMeters(stop.distance), formatFare(stop.fare)].filter(Boolean).join(' · ')
+}
 
 const applyDistances = (stops: DisplayStops[], location: GeoLocation | null) => {
   return stops.map((stop) => ({

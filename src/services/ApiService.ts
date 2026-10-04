@@ -1,12 +1,18 @@
-import axios from 'axios'
+import axios, { type AxiosError, type AxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 import NProgress from 'nprogress'
 
+interface RetryRequestConfig extends AxiosRequestConfig {
+  _retry?: boolean
+}
+
+const RETRY_STATUSES = new Set([403, 408, 429, 502, 503])
+
 const instance = axios.create({
   baseURL: '/api',
-  timeout: 10000,
+  timeout: 30000,
   headers: {
-    'Access-Control-Allow-Origin': '*',
+    Accept: 'application/json',
   },
 })
 
@@ -20,9 +26,21 @@ instance.interceptors.response.use(
     NProgress.done()
     return response
   },
-  (err) => {
+  async (err: AxiosError) => {
+    const config = err.config as RetryRequestConfig | undefined
+    const status = err.response?.status
+    if (config && status && RETRY_STATUSES.has(status) && !config._retry) {
+      config._retry = true
+      await new Promise((resolve) => setTimeout(resolve, 400))
+      return instance(config)
+    }
+
     NProgress.done()
-    ElMessage.error({ message: err.response?.data.message || 'API error' })
+    const payload = err.response?.data as { message?: string } | string | undefined
+    const message =
+      (typeof payload === 'object' && payload?.message) ||
+      (status ? `API error (${status})` : 'API error')
+    ElMessage.error({ message })
     return Promise.reject(err)
   }
 )

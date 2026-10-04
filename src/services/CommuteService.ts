@@ -14,7 +14,13 @@ import type {
   Stop,
   StopResp,
 } from '@/model'
-import { getCompany, getStopCompany, sortRouteNumbers } from '@/utils'
+import {
+  getCompany,
+  getRouteStopFare,
+  getStopCompany,
+  resetFareCache,
+  sortRouteNumbers,
+} from '@/utils'
 
 export interface GeoLocation {
   latitude: number
@@ -29,6 +35,7 @@ export interface ResolvedStop {
   long: string
   seq: number
   distance: number
+  fare?: string | null
 }
 
 interface DirectionLeg {
@@ -49,10 +56,18 @@ const MAX_CTB_PLAN = 10
 const MAX_CTB_MAP_ROUTES = 8
 
 const stopDetailCache = new Map<string, Stop>()
+const ctbRoutesAtStop = new Map<string, Set<string>>()
+const CTB_COMPANY = 'CTB'
 
 const directionMeta = {
   outbound: { name: 'outbound' as const, code: 'O' as const },
   inbound: { name: 'inbound' as const, code: 'I' as const },
+}
+
+const rememberCtbRouteAtStop = (stopId: string, route: string) => {
+  const routes = ctbRoutesAtStop.get(stopId) || new Set<string>()
+  routes.add(route)
+  ctbRoutesAtStop.set(stopId, routes)
 }
 
 export const getCachedStops = (): Stop[] => {
@@ -95,6 +110,8 @@ const seedStopCache = () => {
 
 export const resetCommuteCaches = () => {
   stopDetailCache.clear()
+  ctbRoutesAtStop.clear()
+  resetFareCache()
   invalidatePrefix('route-stop:')
   invalidatePrefix('stop:')
   invalidatePrefix('eta:')
@@ -154,25 +171,33 @@ const routeStopUrl = (route: BusRoute, direction: 'inbound' | 'outbound') => {
   const serviceType = route.service_type || 1
   return company === 'KMB'
     ? `/kmb/route-stop/${route.route}/${direction}/${serviceType}`
-    : `/ctb/route-stop/CTB/${route.route}/${direction}`
+    : `/ctb/route-stop/${CTB_COMPANY}/${route.route}/${direction}`
 }
 
 const stopDetailsUrl = (company: Company, stopId: string) => {
   return company === 'KMB' ? `/kmb/stop/${stopId}` : `/ctb/stop/${stopId}`
 }
 
-const etaUrl = (route: BusRoute, stopId: string) => {
+const etaUrl = (route: Pick<BusRoute, 'route' | 'co' | 'service_type'>, stopId: string) => {
   const company = getCompany(route)
   return company === 'KMB'
     ? `/kmb/eta/${stopId}/${route.route}/${route.service_type || 1}`
-    : `/ctb/eta/CTB/${stopId}/${route.route}`
+    : `/ctb/eta/${CTB_COMPANY}/${stopId}/${route.route}`
 }
+
+const toStop = (stop: Stop, company?: Company): Stop => ({
+  ...stop,
+  lat: String(stop.lat ?? ''),
+  long: String(stop.long ?? ''),
+  name_sc: stop.name_sc || '',
+  co: company || stop.co,
+})
 
 const cacheKey = (route: BusRoute, direction: 'inbound' | 'outbound') => {
   return `${routeKeySafe(route)}-${direction}`
 }
 
-const routeKeySafe = (route: BusRoute) => {
+const routeKeySafe = (route: Pick<BusRoute, 'route' | 'co' | 'service_type'>) => {
   return `${getCompany(route)}-${route.route}-${route.service_type || '1'}`
 }
 
@@ -201,7 +226,7 @@ const resolveStop = async (
       `stop:${routeStop.stop}`,
       async () => {
         const { data } = await API.get<StopResp>(stopDetailsUrl(company, routeStop.stop))
-        return data.data
+        return toStop(data.data, company)
       },
       { ttlMs: CATALOG_TTL_MS, persist: true }
     )
@@ -237,17 +262,32 @@ const fetchDirectionStops = async (
       async () => {
         const { data } = await API.get<RouteStopResp>(routeStopUrl(route, direction))
         const company = getCompany(route)
+        const routeStops = data.data || []
+        if (company === 'CTB') {
+          routeStops.forEach((item) => rememberCtbRouteAtStop(item.stop, route.route))
+        }
         return (
-          await Promise.all((data.data || []).map((item) => resolveStop(company, item)))
+          await Promise.all(routeStops.map((item) => resolveStop(company, item)))
         ).filter((item): item is ResolvedStop => !!item)
       },
       { ttlMs: CATALOG_TTL_MS, persist: true }
     )
 
-    return withDistance(resolved, location)
+    return withFares(route, direction, withDistance(resolved, location))
   } catch {
     return []
   }
+}
+
+const withFares = (
+  route: BusRoute,
+  direction: 'inbound' | 'outbound',
+  stops: ResolvedStop[]
+): ResolvedStop[] => {
+  return stops.map((stop) => ({
+    ...stop,
+    fare: getRouteStopFare(route, direction, stop.stop),
+  }))
 }
 
 export const loadRouteStops = fetchDirectionStops
@@ -342,12 +382,12 @@ const sortEtas = (etas: Eta[]) => {
   return [...etas].sort((a, b) => String(a.eta || '').localeCompare(String(b.eta || '')))
 }
 
-const etaCacheKey = (route: BusRoute, stopId: string) => {
+const etaCacheKey = (route: Pick<BusRoute, 'route' | 'co' | 'service_type'>, stopId: string) => {
   return `eta:stop:${routeKeySafe(route)}:${stopId}`
 }
 
 const fetchEtaList = async (
-  route: BusRoute,
+  route: Pick<BusRoute, 'route' | 'co' | 'service_type'>,
   stopId: string,
   options?: { force?: boolean }
 ): Promise<Eta[]> => {
@@ -356,7 +396,7 @@ const fetchEtaList = async (
       etaCacheKey(route, stopId),
       async () => {
         const { data } = await API.get<EtaResp>(etaUrl(route, stopId))
-        return data.data || []
+        return (data.data || []).map((item) => normalizeEta(item, getCompany(route)))
       },
       { ttlMs: ETA_TTL_MS, persist: false, force: options?.force }
     )
@@ -438,6 +478,7 @@ interface BatchStopEta {
   route?: string
   dir?: string
   seq?: number
+  stop?: string
   dest?: string
   dest_tc?: string
   dest_en?: string
@@ -446,6 +487,7 @@ interface BatchStopEta {
   eta?: string | null
   rmk?: string
   rmk_tc?: string
+  rmk_sc?: string
   rmk_en?: string
   data_timestamp?: string
 }
@@ -458,6 +500,7 @@ export interface StopRouteSummary {
   dest_en: string
   dir: string
   etas: Array<string | null>
+  fare?: string | null
 }
 
 export interface MapStop {
@@ -495,13 +538,14 @@ const normalizeEta = (item: BatchStopEta, fallbackCo: string): Eta => {
     dir: item.dir || '',
     service_type: 1,
     seq: Number(item.seq || 0),
+    stop: item.stop,
     dest_tc: item.dest_tc || dest.dest_tc || item.dest || '',
     dest_sc: item.dest_sc || '',
     dest_en: item.dest_en || dest.dest_en || item.dest || '',
     eta_seq: Number(item.eta_seq || 0),
     eta: item.eta || null,
     rmk_tc: item.rmk_tc || item.rmk || '',
-    rmk_sc: '',
+    rmk_sc: item.rmk_sc || '',
     rmk_en: item.rmk_en || item.rmk || '',
     data_timestamp: item.data_timestamp || '',
   }
@@ -518,7 +562,15 @@ export const fetchStopEtas = async (
       `eta:stop-eta:${company}:${stopId}`,
       async () => {
         if (company === 'CTB') {
-          const { data } = await API.get<EtaResp>(`/batch/stop-eta/CTB/${stopId}`)
+          const routes = Array.from(ctbRoutesAtStop.get(stopId) || [])
+          if (routes.length) {
+            const lists = await Promise.all(
+              routes.map((routeNo) => fetchEtaList({ route: routeNo, co: 'CTB' }, stopId, options))
+            )
+            return lists.flat()
+          }
+
+          const { data } = await API.get<EtaResp>(`/batch/stop-eta/${CTB_COMPANY}/${stopId}`)
           return (data.data || []).map((item) => normalizeEta(item, 'CTB'))
         }
 
@@ -532,7 +584,7 @@ export const fetchStopEtas = async (
   }
 }
 
-export const groupStopEtas = (etas: Eta[]): StopRouteSummary[] => {
+export const groupStopEtas = (etas: Eta[], stopId?: string): StopRouteSummary[] => {
   const grouped = new Map<string, StopRouteSummary>()
 
   sortEtas(etas).forEach((eta) => {
@@ -558,6 +610,11 @@ export const groupStopEtas = (etas: Eta[]): StopRouteSummary[] => {
       dest_en: eta.dest_en,
       dir: eta.dir,
       etas: eta.eta ? [eta.eta] : [],
+      fare: getRouteStopFare(
+        { route: eta.route, service_type: eta.service_type || 1, co },
+        eta.dir === 'I' ? 'inbound' : 'outbound',
+        eta.stop || stopId
+      ),
     })
   })
 
@@ -764,6 +821,7 @@ const toLiveFavorite = (
     direction: leg?.direction || 'outbound',
     etas,
     servesPlace,
+    fare: nearest?.fare || null,
   }
 }
 
@@ -875,6 +933,11 @@ export const planRoutes = async (
       walkDistance: stop.distance,
       direction: dirCode === 'I' ? 'inbound' : 'outbound',
       etas: [],
+      fare: getRouteStopFare(
+        { route: eta.route, service_type: eta.service_type || 1, co: 'KMB' },
+        dirCode === 'I' ? 'inbound' : 'outbound',
+        stop.stop
+      ),
     })
   })
 
@@ -939,6 +1002,7 @@ export const planRoutes = async (
         walkDistance: Number.isFinite(board.distance) ? board.distance : null,
         direction,
         etas,
+        fare: board.fare || null,
       })
     })
   )

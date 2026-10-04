@@ -35,8 +35,15 @@
             <p class="route-number">{{ item.route }}</p>
             <p class="route-meta">{{ t('plan.to', { name: textByLocale(item.dest_tc, item.dest_en) }) }}</p>
             <p class="route-meta">
-              {{ t('plan.boardAt', { name: textByLocale(item.boardStopName, item.boardStopNameEn) }) }}
-              <span v-if="item.walkDistance !== null"> · {{ formatMeters(item.walkDistance) }}</span>
+              {{
+                [
+                  t('plan.boardAt', { name: textByLocale(item.boardStopName, item.boardStopNameEn) }),
+                  item.walkDistance !== null ? formatMeters(item.walkDistance) : '',
+                  formatFare(item.fare),
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+              }}
             </p>
           </div>
         </div>
@@ -57,7 +64,7 @@
 <script lang="ts" setup>
 import { useRouter } from 'vue-router'
 import type { PlannedRoute } from '@/model'
-import { formatEta, formatMeters, getCurrentLocationOrNull, textByLocale } from '@/utils'
+import { formatEta, formatFare, formatMeters, getCurrentLocationOrNull, textByLocale } from '@/utils'
 import { usePrefsStore } from '@/stores/prefs'
 import { planRoutes } from '@/services/CommuteService'
 

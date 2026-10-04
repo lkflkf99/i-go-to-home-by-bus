@@ -7,10 +7,12 @@ interface BusResponseBase<T> {
 
 export interface RouteStop {
   route: string
-  bound: string
-  service_type: string
-  seq: string
+  bound?: string
+  dir?: string
+  service_type?: string
+  seq: string | number
   stop: string
+  co?: string
 }
 
 export interface Stop {
@@ -29,6 +31,7 @@ export interface Eta {
   dir: string
   service_type: number
   seq: number
+  stop?: string
   dest_tc: string
   dest_sc: string
   dest_en: string
@@ -70,6 +73,7 @@ export interface LiveFavorite extends BusRoute {
   direction: 'inbound' | 'outbound'
   etas: Array<string | null>
   servesPlace: boolean
+  fare?: string | null
 }
 
 export interface PlannedRoute {
@@ -86,6 +90,7 @@ export interface PlannedRoute {
   walkDistance: number | null
   direction: 'inbound' | 'outbound'
   etas: Array<string | null>
+  fare?: string | null
 }
 
 export type RouteStopResp = BusResponseBase<RouteStop[]>
