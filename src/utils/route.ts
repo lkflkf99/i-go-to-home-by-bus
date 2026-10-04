@@ -41,3 +41,18 @@ export const isSameRoute = (
 export const withCompany = (route: BusRoute): BusRoute => {
   return { ...route, co: getCompany(route) }
 }
+
+export const includesQuery = (value: string | undefined, query: string) => {
+  return !!value && value.toLowerCase().includes(query)
+}
+
+export const stopMatchesQuery = (
+  stop: Pick<Stop, 'name_tc' | 'name_en'> & { name_sc?: string },
+  query: string
+) => {
+  return (
+    includesQuery(stop.name_tc, query) ||
+    includesQuery(stop.name_en, query) ||
+    includesQuery(stop.name_sc, query)
+  )
+}

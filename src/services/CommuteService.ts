@@ -15,14 +15,24 @@ import type {
   StopResp,
 } from '@/model'
 import {
+  addCachedStop,
+  getCachedCtbRoute,
+  getCachedRoutes,
+  getCachedStops,
+  getCatalogRevision,
   getCompany,
   getRouteStopFare,
   getRouteStopMap,
+  getRoutesThroughStop,
   getStopCompany,
+  includesQuery,
   parseRouteCatalogKey,
+  resetCatalogCache,
   resetFareCache,
   resetRouteStopCache,
+  routeKey,
   sortRouteNumbers,
+  stopMatchesQuery,
 } from '@/utils'
 
 export interface GeoLocation {
@@ -61,6 +71,7 @@ const MAX_PLAN_VIA = 12
 const stopDetailCache = new Map<string, Stop>()
 const ctbRoutesAtStop = new Map<string, Set<string>>()
 const CTB_COMPANY = 'CTB'
+let seededRevision = -1
 
 const directionMeta = {
   outbound: { name: 'outbound' as const, code: 'O' as const },
@@ -73,47 +84,36 @@ const rememberCtbRouteAtStop = (stopId: string, route: string) => {
   ctbRoutesAtStop.set(stopId, routes)
 }
 
-export const getCachedStops = (): Stop[] => {
-  try {
-    return JSON.parse(localStorage.getItem('stops') || '[]')
-  } catch {
-    return []
-  }
-}
-
-export const getCachedRoutes = (): BusRoute[] => {
-  try {
-    return JSON.parse(localStorage.getItem('routes') || '[]')
-  } catch {
-    return []
-  }
-}
+export { getCachedRoutes, getCachedStops }
 
 const persistDiscoveredStop = (stop: Stop, company: Company) => {
   if (company !== 'CTB') {
     return
   }
 
-  const stops = getCachedStops()
-  if (stops.some((item) => item.stop === stop.stop)) {
-    return
-  }
-
-  localStorage.setItem('stops', JSON.stringify(stops.concat({ ...stop, co: 'CTB' })))
+  addCachedStop({ ...stop, co: 'CTB' })
+  stopDetailCache.set(stop.stop, stop)
 }
 
 const seedStopCache = () => {
-  if (stopDetailCache.size) {
+  const revision = getCatalogRevision()
+  if (stopDetailCache.size && seededRevision === revision) {
     return
   }
+
+  stopDetailCache.clear()
+  ctbRoutesAtStop.clear()
   getCachedStops().forEach((stop) => {
     stopDetailCache.set(stop.stop, stop)
   })
+  seededRevision = revision
 }
 
 export const resetCommuteCaches = () => {
   stopDetailCache.clear()
   ctbRoutesAtStop.clear()
+  seededRevision = -1
+  resetCatalogCache()
   resetFareCache()
   resetRouteStopCache()
   invalidatePrefix('route-stop:')
@@ -136,13 +136,7 @@ export const searchStops = (query: string, limit = 30): SavedPlace[] => {
   }
 
   return getCachedStops()
-    .filter((stop) => {
-      return (
-        stop.name_tc.toLowerCase().includes(q) ||
-        stop.name_en.toLowerCase().includes(q) ||
-        (stop.name_sc && stop.name_sc.toLowerCase().includes(q))
-      )
-    })
+    .filter((stop) => stopMatchesQuery(stop, q))
     .slice(0, limit)
     .map(toPlace)
 }
@@ -198,11 +192,7 @@ const toStop = (stop: Stop, company?: Company): Stop => ({
 })
 
 const cacheKey = (route: BusRoute, direction: 'inbound' | 'outbound') => {
-  return `${routeKeySafe(route)}-${direction}`
-}
-
-const routeKeySafe = (route: Pick<BusRoute, 'route' | 'co' | 'service_type'>) => {
-  return `${getCompany(route)}-${route.route}-${route.service_type || '1'}`
+  return `${routeKey(route)}-${direction}`
 }
 
 const toResolvedStop = (stop: Stop, seq: number): ResolvedStop => ({
@@ -387,7 +377,7 @@ const sortEtas = (etas: Eta[]) => {
 }
 
 const etaCacheKey = (route: Pick<BusRoute, 'route' | 'co' | 'service_type'>, stopId: string) => {
-  return `eta:stop:${routeKeySafe(route)}:${stopId}`
+  return `eta:stop:${routeKey(route)}:${stopId}`
 }
 
 const fetchEtaList = async (
@@ -415,7 +405,7 @@ const fetchKmbRouteEtas = async (
 ): Promise<Eta[]> => {
   try {
     return await cachedGet(
-      `eta:route:${routeKeySafe(route)}`,
+      `eta:route:${routeKey(route)}`,
       async () => {
         const { data } = await API.get<EtaResp>(
           `/kmb/route-eta/${route.route}/${route.service_type || 1}`
@@ -522,9 +512,7 @@ export interface MapStop {
 }
 
 const ctbDestFromCatalog = (route: string, dir?: string) => {
-  const item = getCachedRoutes().find((candidate) => {
-    return candidate.route === route && getCompany(candidate) === 'CTB'
-  })
+  const item = getCachedCtbRoute(route)
   if (!item) {
     return { dest_tc: '', dest_en: '' }
   }
@@ -535,7 +523,8 @@ const ctbDestFromCatalog = (route: string, dir?: string) => {
 }
 
 const normalizeEta = (item: BatchStopEta, fallbackCo: string): Eta => {
-  const dest = ctbDestFromCatalog(item.route || '', item.dir)
+  const company = item.co || fallbackCo
+  const dest = company === 'CTB' ? ctbDestFromCatalog(item.route || '', item.dir) : { dest_tc: '', dest_en: '' }
   return {
     co: item.co || fallbackCo,
     route: item.route || '',
@@ -769,33 +758,43 @@ export const loadNearbyMapStops = async (
   seedStopCache()
   const nearby = stopsNearLocation(location)
   const kmbNearby = nearby.filter((item) => getStopCompany(item.stop) === 'KMB').slice(0, MAX_MAP_STOPS)
+  const cachedCtbNearby = nearby
+    .filter((item) => getStopCompany(item.stop) === 'CTB')
+    .slice(0, MAX_MAP_STOPS)
   const kmbStops = await hydrateMapStops(kmbNearby)
   let clustered = clusterMapStops(kmbStops)
   onUpdate?.(clustered)
 
-  const ctbStops = await discoverNearbyCtbStops(
-    location,
-    nearby.slice(0, MAX_NEARBY_STOPS).map((item) => item.stop.name_tc)
-  )
   const seen = new Set(kmbStops.flatMap((item) => item.members.map((member) => `${member.co}-${member.stop}`)))
-  const ctbNearby = ctbStops
-    .map((stop) => ({
-      stop,
-      distance: haversine(location, {
-        latitude: Number(stop.lat),
-        longitude: Number(stop.long),
-      }),
-    }))
-    .filter((item) => {
-      return (
-        Number.isFinite(item.distance) &&
-        item.distance <= MAP_RADIUS_M &&
-        !seen.has(`CTB-${item.stop.stop}`)
-      )
-    })
+  let extraCtb = cachedCtbNearby.filter((item) => !seen.has(`CTB-${item.stop.stop}`))
 
-  if (ctbNearby.length) {
-    clustered = clusterMapStops(kmbStops.concat(await hydrateMapStops(ctbNearby)))
+  if (!extraCtb.length && !cachedCtbNearby.length) {
+    const hasCtbCatalog = getCachedStops().some((stop) => getStopCompany(stop) === 'CTB')
+    if (!hasCtbCatalog) {
+      const discovered = await discoverNearbyCtbStops(
+        location,
+        nearby.slice(0, MAX_NEARBY_STOPS).map((item) => item.stop.name_tc)
+      )
+      extraCtb = discovered
+        .map((stop) => ({
+          stop,
+          distance: haversine(location, {
+            latitude: Number(stop.lat),
+            longitude: Number(stop.long),
+          }),
+        }))
+        .filter((item) => {
+          return (
+            Number.isFinite(item.distance) &&
+            item.distance <= MAP_RADIUS_M &&
+            !seen.has(`CTB-${item.stop.stop}`)
+          )
+        })
+    }
+  }
+
+  if (extraCtb.length) {
+    clustered = clusterMapStops(kmbStops.concat(await hydrateMapStops(extraCtb)))
     onUpdate?.(clustered)
   }
 
@@ -852,10 +851,6 @@ export const refreshFavoriteEtas = async (item: LiveFavorite): Promise<LiveFavor
   const dirCode = item.direction === 'inbound' ? 'I' : 'O'
   const etas = await fetchEtas(item, item.nearestStopId, dirCode, { force: true })
   return { ...item, etas }
-}
-
-const includesQuery = (value: string | undefined, query: string) => {
-  return !!value && value.toLowerCase().includes(query)
 }
 
 const namesOverlap = (a: string, b: string) => {
@@ -956,13 +951,7 @@ export const planRoutes = async (
 
   const destIds = new Set(
     getCachedStops()
-      .filter((stop) => {
-        return (
-          includesQuery(stop.name_tc, query) ||
-          includesQuery(stop.name_en, query) ||
-          includesQuery(stop.name_sc, query)
-        )
-      })
+      .filter((stop) => stopMatchesQuery(stop, query))
       .map((stop) => stop.stop)
   )
   if (destPlace?.stop) {
@@ -970,58 +959,68 @@ export const planRoutes = async (
   }
   const nearbyById = new Map(nearbyStops.map((stop) => [stop.stop, stop]))
   const viaMatches: PlannedRoute[] = []
+  const routeStops = getRouteStopMap()
+  const seenRoutes = new Set<string>()
 
   if (destIds.size && nearbyById.size) {
-    Object.entries(getRouteStopMap()).forEach(([key, stopIds]) => {
-      const parsed = parseRouteCatalogKey(key)
-      if (!parsed) {
-        return
-      }
-
-      let boardIdx = -1
-      let destIdx = -1
-      for (let index = 0; index < stopIds.length; index += 1) {
-        const stopId = stopIds[index]
-        if (boardIdx < 0 && nearbyById.has(stopId)) {
-          boardIdx = index
+    nearbyStops.forEach((nearby) => {
+      getRoutesThroughStop(nearby.stop).forEach(({ key }) => {
+        if (seenRoutes.has(key)) {
+          return
         }
-        if (boardIdx >= 0 && index > boardIdx && destIds.has(stopId)) {
-          destIdx = index
-          break
+        seenRoutes.add(key)
+
+        const parsed = parseRouteCatalogKey(key)
+        const stopIds = routeStops[key]
+        if (!parsed || !stopIds) {
+          return
         }
-      }
-      if (boardIdx < 0 || destIdx < 0) {
-        return
-      }
 
-      const board = nearbyById.get(stopIds[boardIdx])
-      const destStop =
-        stopDetailCache.get(stopIds[destIdx]) ||
-        (destPlace && destPlace.stop === stopIds[destIdx] ? destPlace : undefined)
-      if (!board || !destStop) {
-        return
-      }
+        let boardIdx = -1
+        let destIdx = -1
+        for (let index = 0; index < stopIds.length; index += 1) {
+          const stopId = stopIds[index]
+          if (boardIdx < 0 && nearbyById.has(stopId)) {
+            boardIdx = index
+          }
+          if (boardIdx >= 0 && index > boardIdx && destIds.has(stopId)) {
+            destIdx = index
+            break
+          }
+        }
+        if (boardIdx < 0 || destIdx < 0) {
+          return
+        }
 
-      const direction = parsed.bound === 'I' ? 'inbound' : 'outbound'
-      viaMatches.push({
-        route: parsed.route,
-        service_type: parsed.service_type,
-        co: parsed.co,
-        dest_tc: destStop.name_tc,
-        dest_en: destStop.name_en,
-        orig_tc: board.name_tc,
-        orig_en: board.name_en,
-        boardStopName: board.name_tc,
-        boardStopNameEn: board.name_en,
-        boardStopId: board.stop,
-        walkDistance: board.distance,
-        direction,
-        etas: [],
-        fare: getRouteStopFare(
-          { route: parsed.route, service_type: parsed.service_type, co: parsed.co },
+        const board = nearbyById.get(stopIds[boardIdx])
+        const destStop =
+          stopDetailCache.get(stopIds[destIdx]) ||
+          (destPlace && destPlace.stop === stopIds[destIdx] ? destPlace : undefined)
+        if (!board || !destStop) {
+          return
+        }
+
+        const direction = parsed.bound === 'I' ? 'inbound' : 'outbound'
+        viaMatches.push({
+          route: parsed.route,
+          service_type: parsed.service_type,
+          co: parsed.co,
+          dest_tc: destStop.name_tc,
+          dest_en: destStop.name_en,
+          orig_tc: board.name_tc,
+          orig_en: board.name_en,
+          boardStopName: board.name_tc,
+          boardStopNameEn: board.name_en,
+          boardStopId: board.stop,
+          walkDistance: board.distance,
           direction,
-          board.stop
-        ),
+          etas: [],
+          fare: getRouteStopFare(
+            { route: parsed.route, service_type: parsed.service_type, co: parsed.co },
+            direction,
+            board.stop
+          ),
+        })
       })
     })
   }

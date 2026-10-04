@@ -1,7 +1,13 @@
 import API from '@/services/ApiService'
-import { CATALOG_TTL_MS } from '@/services/HttpCache'
-import { getCachedStops, resetCommuteCaches } from '@/services/CommuteService'
-import { getRouteStopMap, getStopCompany, saveRouteFares, saveRouteStops } from '@/utils'
+import { CATALOG_TTL_MS, invalidatePrefix } from '@/services/HttpCache'
+import {
+  getCachedStops,
+  getRouteStopMap,
+  getStopCompany,
+  saveCatalog,
+  saveRouteFares,
+  saveRouteStops,
+} from '@/utils'
 import type { Stop } from '@/model'
 import type { RouteFareMap } from '@/utils/fare'
 import type { RouteStopMap } from '@/utils/routeStops'
@@ -73,65 +79,11 @@ const boundsFor = (bound?: string) => {
   return []
 }
 
-const toCtbStops = (db: HkbusDb): Stop[] => {
+const indexHkbusDb = (db: HkbusDb) => {
   const stopList = db.stopList || {}
-  const ids = new Set<string>()
-
-  Object.values(db.routeList || {}).forEach((route) => {
-    if (!(route.co || []).includes('ctb')) {
-      return
-    }
-    ;(route.stops?.ctb || []).forEach((stopId) => ids.add(stopId))
-  })
-
-  return Array.from(ids)
-    .map((stopId) => {
-      const info = stopList[stopId]
-      return info ? toCtbStop(stopId, info) : null
-    })
-    .filter((stop): stop is Stop => !!stop)
-}
-
-const toRouteFares = (db: HkbusDb): RouteFareMap => {
-  const table: RouteFareMap = {}
-
-  Object.values(db.routeList || {}).forEach((route) => {
-    const fares = route.fares || []
-    if (!route.route || !fares.length) {
-      return
-    }
-
-    const serviceType = String(route.serviceType || 1)
-    ;(['kmb', 'ctb'] as const).forEach((company) => {
-      if (!(route.co || []).includes(company)) {
-        return
-      }
-
-      const stops = route.stops?.[company] || []
-      if (!stops.length) {
-        return
-      }
-
-      const byStop: Record<string, string> = {}
-      stops.forEach((stopId, index) => {
-        const fare = fares[index]
-        if (fare) {
-          byStop[stopId] = String(fare)
-        }
-      })
-
-      boundsFor(route.bound?.[company]).forEach((bound) => {
-        const key = `${company.toUpperCase()}-${route.route}-${serviceType}-${bound}`
-        table[key] = { ...(table[key] || {}), ...byStop }
-      })
-    })
-  })
-
-  return table
-}
-
-const toRouteStops = (db: HkbusDb): RouteStopMap => {
-  const table: RouteStopMap = {}
+  const ctbIds = new Set<string>()
+  const fares: RouteFareMap = {}
+  const routeStops: RouteStopMap = {}
 
   Object.values(db.routeList || {}).forEach((route) => {
     if (!route.route) {
@@ -139,8 +91,11 @@ const toRouteStops = (db: HkbusDb): RouteStopMap => {
     }
 
     const serviceType = String(route.serviceType || 1)
+    const companies = route.co || []
+    const fareList = route.fares || []
+
     ;(['kmb', 'ctb'] as const).forEach((company) => {
-      if (!(route.co || []).includes(company)) {
+      if (!companies.includes(company)) {
         return
       }
 
@@ -149,14 +104,47 @@ const toRouteStops = (db: HkbusDb): RouteStopMap => {
         return
       }
 
+      if (company === 'ctb') {
+        stops.forEach((stopId) => ctbIds.add(stopId))
+      }
+
+      const byStop: Record<string, string> = {}
+      if (fareList.length) {
+        stops.forEach((stopId, index) => {
+          const fare = fareList[index]
+          if (fare) {
+            byStop[stopId] = String(fare)
+          }
+        })
+      }
+
       boundsFor(route.bound?.[company]).forEach((bound) => {
         const key = `${company.toUpperCase()}-${route.route}-${serviceType}-${bound}`
-        table[key] = stops
+        routeStops[key] = stops
+        if (fareList.length) {
+          fares[key] = { ...(fares[key] || {}), ...byStop }
+        }
       })
     })
   })
 
-  return table
+  const ctbStops = Array.from(ctbIds)
+    .map((stopId) => {
+      const info = stopList[stopId]
+      return info ? toCtbStop(stopId, info) : null
+    })
+    .filter((stop): stop is Stop => !!stop)
+
+  return { ctbStops, fares, routeStops }
+}
+
+const persistHkbusIndex = (hkbus: { fares: RouteFareMap; routeStops: RouteStopMap }) => {
+  if (Object.keys(hkbus.fares).length) {
+    saveRouteFares(hkbus.fares)
+  }
+  if (Object.keys(hkbus.routeStops).length) {
+    saveRouteStops(hkbus.routeStops)
+  }
 }
 
 const fetchHkbusCatalog = async () => {
@@ -172,12 +160,7 @@ const fetchHkbusCatalog = async () => {
       throw new Error(`hkbus ${response.status}`)
     }
 
-    const db = (await response.json()) as HkbusDb
-    return {
-      ctbStops: toCtbStops(db),
-      fares: toRouteFares(db),
-      routeStops: toRouteStops(db),
-    }
+    return indexHkbusDb((await response.json()) as HkbusDb)
   } finally {
     window.clearTimeout(timer)
   }
@@ -188,13 +171,7 @@ export const ensureHkbusRouteIndex = async () => {
     return
   }
 
-  const hkbus = await fetchHkbusCatalog()
-  if (hkbus.fares && Object.keys(hkbus.fares).length) {
-    saveRouteFares(hkbus.fares)
-  }
-  if (hkbus.routeStops && Object.keys(hkbus.routeStops).length) {
-    saveRouteStops(hkbus.routeStops)
-  }
+  persistHkbusIndex(await fetchHkbusCatalog())
 }
 
 export const fetchBusData = async () => {
@@ -210,17 +187,18 @@ export const fetchBusData = async () => {
   const kmbStopsTagged = (kmbStops.data || []).map((stop) => ({ ...stop, co: 'KMB' as const }))
   const ctbStops = hkbus?.ctbStops.length ? hkbus.ctbStops : cachedCtbStops()
 
-  if (hkbus?.fares && Object.keys(hkbus.fares).length) {
-    saveRouteFares(hkbus.fares)
-  }
-  if (hkbus?.routeStops && Object.keys(hkbus.routeStops).length) {
-    saveRouteStops(hkbus.routeStops)
+  if (hkbus) {
+    persistHkbusIndex(hkbus)
   }
 
-  localStorage.setItem('stops', JSON.stringify(kmbStopsTagged.concat(ctbStops)))
-  localStorage.setItem('routes', JSON.stringify(routes))
+  saveCatalog({
+    stops: kmbStopsTagged.concat(ctbStops),
+    routes,
+  })
   localStorage.setItem('dbLastUpdateTime', new Date().toISOString())
-  resetCommuteCaches()
+  invalidatePrefix('route-stop:')
+  invalidatePrefix('stop:')
+  invalidatePrefix('eta:')
 
   return new Date().toISOString()
 }
