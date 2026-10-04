@@ -50,11 +50,16 @@ plan:
   noMatch: 附近冇巴士去呢個目的地。
   to: 往 {name}
   boardAt: 喺 {name} 上車
+  rideMin: '約 {n} 分鐘'
 details:
   switch: 調轉方向
   refresh: 重新整理
   trafficCam: 交通鏡頭
   openingMaps: 正喺 Google 地圖開啟...
+  firstLast: 頭班 {first} · 尾班 {last}
+  everyMin: 每 {n} 分鐘一班
+  everyMinRange: 每 {min}–{max} 分鐘一班
+  notRunning: 而家冇開呢班
 map:
   locationOff: 請喺設定開啟位置，先可以睇附近車站。
   noRoutes: 呢個站暫時冇巴士資料。

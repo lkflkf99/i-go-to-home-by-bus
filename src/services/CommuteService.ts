@@ -16,23 +16,30 @@ import type {
 } from '@/model'
 import {
   addCachedStop,
+  expandStopIds,
   getCachedCtbRoute,
   getCachedRoutes,
   getCachedStops,
   getCatalogRevision,
   getCompany,
+  getRouteJt,
   getRouteStopFare,
   getRouteStopMap,
   getRoutesThroughStop,
   getStopCompany,
   includesQuery,
+  isRouteServingNow,
   parseRouteCatalogKey,
   resetCatalogCache,
   resetFareCache,
   resetRouteStopCache,
+  resetStopAliasCache,
+  resetTimetableCache,
   routeKey,
+  scaleJourneyMinutes,
   sortRouteNumbers,
   stopMatchesQuery,
+  stopsSharePole,
 } from '@/utils'
 
 export interface GeoLocation {
@@ -116,6 +123,8 @@ export const resetCommuteCaches = () => {
   resetCatalogCache()
   resetFareCache()
   resetRouteStopCache()
+  resetTimetableCache()
+  resetStopAliasCache()
   invalidatePrefix('route-stop:')
   invalidatePrefix('stop:')
   invalidatePrefix('eta:')
@@ -674,7 +683,7 @@ const clusterMapStops = (stops: MapStop[]): MapStop[] => {
         { latitude: Number(seed.lat), longitude: Number(seed.long) },
         { latitude: Number(candidate.lat), longitude: Number(candidate.long) }
       )
-      if (distance <= MAP_CLUSTER_M) {
+      if (distance <= MAP_CLUSTER_M || stopsSharePole(seed.stop, candidate.stop)) {
         members.push(candidate)
         remaining.splice(index, 1)
       }
@@ -919,6 +928,8 @@ export const planRoutes = async (
     }
 
     const dirCode = eta.dir === 'I' ? 'I' : 'O'
+    const direction = dirCode === 'I' ? 'inbound' : 'outbound'
+    const planRoute = { route: eta.route, service_type: eta.service_type || 1, co: 'KMB' as const }
     planned.set(key, {
       route: eta.route,
       service_type: eta.service_type || 1,
@@ -931,13 +942,11 @@ export const planRoutes = async (
       boardStopNameEn: stop.name_en,
       boardStopId: stop.stop,
       walkDistance: stop.distance,
-      direction: dirCode === 'I' ? 'inbound' : 'outbound',
+      direction,
       etas: [],
-      fare: getRouteStopFare(
-        { route: eta.route, service_type: eta.service_type || 1, co: 'KMB' },
-        dirCode === 'I' ? 'inbound' : 'outbound',
-        stop.stop
-      ),
+      fare: getRouteStopFare(planRoute, direction, stop.stop),
+      journeyMin: getRouteJt(planRoute, direction),
+      serving: isRouteServingNow(planRoute, direction),
     })
   })
 
@@ -949,14 +958,12 @@ export const planRoutes = async (
     )
   })
 
-  const destIds = new Set(
+  const destIds = expandStopIds(
     getCachedStops()
       .filter((stop) => stopMatchesQuery(stop, query))
       .map((stop) => stop.stop)
+      .concat(destPlace?.stop ? [destPlace.stop] : [])
   )
-  if (destPlace?.stop) {
-    destIds.add(destPlace.stop)
-  }
   const nearbyById = new Map(nearbyStops.map((stop) => [stop.stop, stop]))
   const viaMatches: PlannedRoute[] = []
   const routeStops = getRouteStopMap()
@@ -995,12 +1002,17 @@ export const planRoutes = async (
         const board = nearbyById.get(stopIds[boardIdx])
         const destStop =
           stopDetailCache.get(stopIds[destIdx]) ||
-          (destPlace && destPlace.stop === stopIds[destIdx] ? destPlace : undefined)
+          (destPlace && expandStopIds([destPlace.stop]).has(stopIds[destIdx]) ? destPlace : undefined)
         if (!board || !destStop) {
           return
         }
 
         const direction = parsed.bound === 'I' ? 'inbound' : 'outbound'
+        const planRoute = {
+          route: parsed.route,
+          service_type: parsed.service_type,
+          co: parsed.co,
+        }
         viaMatches.push({
           route: parsed.route,
           service_type: parsed.service_type,
@@ -1015,11 +1027,14 @@ export const planRoutes = async (
           walkDistance: board.distance,
           direction,
           etas: [],
-          fare: getRouteStopFare(
-            { route: parsed.route, service_type: parsed.service_type, co: parsed.co },
-            direction,
-            board.stop
+          fare: getRouteStopFare(planRoute, direction, board.stop),
+          journeyMin: scaleJourneyMinutes(
+            getRouteJt(planRoute, direction),
+            boardIdx,
+            destIdx,
+            stopIds.length
           ),
+          serving: isRouteServingNow(planRoute, direction),
         })
       })
     })
@@ -1053,6 +1068,17 @@ export const planRoutes = async (
   )
 
   return Array.from(planned.values()).sort((a, b) => {
+    const rank = (item: PlannedRoute) => {
+      if (item.etas[0]) {
+        return 0
+      }
+      return item.serving === false ? 2 : 1
+    }
+    const aRank = rank(a)
+    const bRank = rank(b)
+    if (aRank !== bRank) {
+      return aRank - bRank
+    }
     const aEta = a.etas[0] || '9999'
     const bEta = b.etas[0] || '9999'
     if (aEta !== bEta) {

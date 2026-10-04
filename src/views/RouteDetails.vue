@@ -20,6 +20,7 @@
         {{ t('details.refresh') }}
       </el-button>
     </div>
+    <p v-if="timetableLabel" class="filter-banner">{{ timetableLabel }}</p>
     <ul class="settings-group">
       <li
         class="route-row"
@@ -76,9 +77,18 @@ import { useRoute } from 'vue-router'
 import haversine from 'haversine-distance'
 import { ElLoading } from 'element-plus'
 import { Switch, Refresh } from '@element-plus/icons-vue'
-import { getCurrentLocationOrNull, isIOS, formatEta, formatFare, formatMeters, textByLocale } from '@/utils'
+import {
+  getCurrentLocationOrNull,
+  isIOS,
+  formatEta,
+  formatFare,
+  formatMeters,
+  getRouteServiceWindow,
+  textByLocale,
+} from '@/utils'
 import { usePrefsStore } from '@/stores/prefs'
 import { loadRouteEtas, loadRouteStops } from '@/services/CommuteService'
+import { ensureHkbusRouteIndex } from '@/services/BusService'
 import type { GeoLocation, ResolvedStop } from '@/services/CommuteService'
 import type { BusRoute, Eta } from '@/model'
 import trafficCam from '@/assets/traffic_cam.json'
@@ -135,6 +145,30 @@ const routeFromQuery = (): BusRoute | null => {
     dest_tc: '',
   }
 }
+
+const timetableLabel = computed(() => {
+  const busRoute = routeFromQuery()
+  if (!busRoute) {
+    return ''
+  }
+  const window = getRouteServiceWindow(busRoute, getDirection())
+  if (!window) {
+    return ''
+  }
+  const headway =
+    window.headwayMin && window.headwayMax && window.headwayMin !== window.headwayMax
+      ? t('details.everyMinRange', { min: window.headwayMin, max: window.headwayMax })
+      : window.headwayMin
+        ? t('details.everyMin', { n: window.headwayMin })
+        : ''
+  return [
+    window.serving ? '' : t('details.notRunning'),
+    t('details.firstLast', { first: window.first, last: window.last }),
+    headway,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+})
 
 const findCam = (lat: string, long: string) => {
   return (trafficCam as TrafficCam[]).find(
@@ -248,6 +282,7 @@ const fetchDetails = async () => {
 
   isPageLoading.value = true
   try {
+    await ensureHkbusRouteIndex().catch(() => undefined)
     const currLocation = await getCurrentLocationOrNull()
     const stops = await loadRouteStops(busRoute, getDirection(), currLocation)
     displayStops.value = stops.map((stop) => toDisplayStop(stop))

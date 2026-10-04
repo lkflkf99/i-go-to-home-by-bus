@@ -60,6 +60,7 @@
                 [
                   t('plan.boardAt', { name: textByLocale(item.boardStopName, item.boardStopNameEn) }),
                   item.walkDistance !== null ? formatMeters(item.walkDistance) : '',
+                  item.journeyMin ? t('plan.rideMin', { n: item.journeyMin }) : '',
                   formatFare(item.fare),
                 ]
                   .filter(Boolean)
@@ -75,6 +76,9 @@
             :class="index === 0 ? 'eta-primary' : 'eta-secondary'"
           >
             {{ formatEta(eta) }}
+          </p>
+          <p v-if="!item.etas[0] && item.serving === false" class="eta-secondary">
+            {{ t('details.notRunning') }}
           </p>
         </div>
       </li>

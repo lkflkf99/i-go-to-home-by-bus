@@ -91,6 +91,8 @@ export interface PlannedRoute {
   direction: 'inbound' | 'outbound'
   etas: Array<string | null>
   fare?: string | null
+  journeyMin?: number | null
+  serving?: boolean
 }
 
 export type RouteStopResp = BusResponseBase<RouteStop[]>
