@@ -496,6 +496,17 @@ html.is-app-keyboard .app-content {
   height: 100%;
 }
 
+.map-canvas.is-theme-default .map-traffic-tile,
+.map-canvas.is-theme-default img[src*='traffic'] {
+  filter: saturate(0.58) brightness(1.06) contrast(0.9);
+  mix-blend-mode: multiply;
+}
+
+.map-canvas.is-theme-blackPink .map-traffic-tile,
+.map-canvas.is-theme-blackPink img[src*='traffic'] {
+  filter: hue-rotate(-30deg) saturate(0.78) brightness(0.72) contrast(1.06);
+}
+
 .stop-marker {
   display: flex;
   flex-direction: column;

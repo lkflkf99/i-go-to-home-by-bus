@@ -5,6 +5,7 @@
   <GoogleMap
     v-else
     class="map-canvas"
+    :class="`is-theme-${appTheme}`"
     api-key="AIzaSyAd3JuKmaDu5q7FnmlvzjDb4bTd06BGAjY"
     style="width: 100%; height: 100%"
     :center="center"
@@ -110,6 +111,8 @@ import { usePrefsStore } from '@/stores/prefs'
 
 const { t } = useI18n()
 const prefs = usePrefsStore()
+type TrafficLayerHandle = { setMap: (map: unknown) => void }
+
 const mapRef = ref()
 const router = useRouter()
 const isLoading = ref(true)
@@ -118,6 +121,8 @@ const nearbyStops = ref<MapStop[]>([])
 const maxRouteChips = 4
 const mapStyles = computed(() => buildMapStyles(appTheme.value))
 const isMapReady = computed(() => Boolean(mapRef.value?.ready))
+const trafficLayer = shallowRef<TrafficLayerHandle | null>(null)
+const trafficTileObserver = shallowRef<MutationObserver | null>(null)
 const dialog = ref({
   title: '',
   visible: false,
@@ -126,9 +131,78 @@ const dialog = ref({
 
 const visibleRoutes = (item: MapStop) => item.routeLabels.slice(0, maxRouteChips)
 
+const isTrafficTileSrc = (src: string) => /traffic|ltraffic|mapslt/i.test(src)
+
+const tagTrafficTile = (img: HTMLImageElement) => {
+  if (isTrafficTileSrc(img.currentSrc || img.src || img.getAttribute('src') || '')) {
+    img.classList.add('map-traffic-tile')
+  }
+}
+
+const tagTrafficTiles = (root: ParentNode) => {
+  root.querySelectorAll('img').forEach((img) => tagTrafficTile(img))
+}
+
+const bindTrafficTiles = () => {
+  const root = (mapRef.value?.$el as ParentNode | undefined) || document.querySelector('.map-canvas')
+  if (!root) {
+    return
+  }
+
+  tagTrafficTiles(root)
+  trafficTileObserver.value?.disconnect()
+  trafficTileObserver.value = new MutationObserver((records) => {
+    for (const record of records) {
+      if (record.type === 'attributes' && record.target instanceof HTMLImageElement) {
+        tagTrafficTile(record.target)
+        continue
+      }
+      record.addedNodes.forEach((node) => {
+        if (node instanceof HTMLImageElement) {
+          tagTrafficTile(node)
+          return
+        }
+        if (node instanceof Element) {
+          tagTrafficTiles(node)
+        }
+      })
+    }
+  })
+  trafficTileObserver.value.observe(root, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['src'],
+  })
+}
+
+const clearTrafficTiles = () => {
+  trafficTileObserver.value?.disconnect()
+  trafficTileObserver.value = null
+}
+
+const applyTrafficLayer = (map: unknown) => {
+  const TrafficLayer = (
+    window as Window & { google?: { maps?: { TrafficLayer?: new () => TrafficLayerHandle } } }
+  ).google?.maps?.TrafficLayer
+  if (!TrafficLayer) {
+    return
+  }
+
+  if (!trafficLayer.value) {
+    trafficLayer.value = new TrafficLayer()
+  }
+  trafficLayer.value.setMap(map)
+  bindTrafficTiles()
+}
+
 const applyMapOptions = () => {
   const map = mapRef.value?.map
-  if (!mapRef.value?.ready || !map) return
+  if (!mapRef.value?.ready || !map) {
+    trafficLayer.value?.setMap(null)
+    clearTrafficTiles()
+    return
+  }
 
   map.setOptions({
     zoomControl: false,
@@ -140,9 +214,16 @@ const applyMapOptions = () => {
     styles: mapStyles.value,
     backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--app-bg').trim() || '#f2f2f7',
   })
+  applyTrafficLayer(map)
 }
 
 watch([() => mapRef.value?.ready, mapStyles], applyMapOptions)
+
+onUnmounted(() => {
+  trafficLayer.value?.setMap(null)
+  trafficLayer.value = null
+  clearTrafficTiles()
+})
 
 const loadNearbyStops = async () => {
   if (!prefs.locationEnabled) {
