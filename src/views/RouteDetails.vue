@@ -231,7 +231,6 @@ const variantLabel = (variant: RouteVariant) => {
   if (peers.length <= 1) {
     return base || t('details.special')
   }
-  console.log([place || t('details.special'), origLabel(variant)].filter(Boolean).join(' · '))
   return [place || t('details.special'), origLabel(variant)].filter(Boolean).join(' · ')
 }
 
