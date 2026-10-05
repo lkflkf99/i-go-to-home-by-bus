@@ -8,7 +8,7 @@
         plain
         :icon="Switch"
         :aria-label="t('details.switch')"
-        :disabled="isPageLoading"
+        :disabled="isPageLoading || !canSwitchDirection"
         @click="handleSwitchDirection"
       />
       <el-button
@@ -17,7 +17,7 @@
         plain
         :icon="Refresh"
         :aria-label="t('details.refresh')"
-        :disabled="isPageLoading"
+        :disabled="isPageLoading || !isServingNow"
         :loading="isRefreshing"
         @click="handleRefresh"
       />
@@ -69,7 +69,7 @@
             </el-button>
           </div>
         </div>
-        <div class="eta-stack">
+        <div class="eta-stack" v-if="isServingNow">
           <p
             v-for="(stopEta, etaIndex) in stop.eta.length ? stop.eta : [{ eta: null }]"
             :key="etaIndex"
@@ -104,6 +104,8 @@ import {
   getVariantDayKind,
   getVariantServiceWindow,
   isCircularVariant,
+  isRouteServingNow,
+  isVariantServingNow,
   pickRouteVariant,
   textByLocale,
   toVariantRoute,
@@ -177,9 +179,17 @@ const routeFromQuery = (): BusRoute | null => {
 
 const visibleVariants = computed(() => variantsForDirection(allVariants.value, getDirection()))
 const selectedKey = computed(() => (selectedVariant.value ? variantKey(selectedVariant.value) : ''))
+const canSwitchDirection = computed(() => selectedVariant.value?.bound !== 'OI')
 const activeRoute = computed(() =>
   selectedVariant.value ? toVariantRoute(selectedVariant.value) : routeFromQuery()
 )
+const isServingNow = computed(() => {
+  if (selectedVariant.value) {
+    return isVariantServingNow(selectedVariant.value)
+  }
+  const busRoute = activeRoute.value
+  return busRoute ? isRouteServingNow(busRoute, getDirection()) : true
+})
 
 const shortPlaceName = (name: string) => name.split(',')[0].trim() || name
 
@@ -190,17 +200,39 @@ const dayLabel = (kind: ReturnType<typeof getVariantDayKind>) => {
   return t(`details.${kind}`)
 }
 
-const variantLabel = (variant: RouteVariant) => {
-  const window = getVariantServiceWindow(variant)
-  const days = dayLabel(getVariantDayKind(variant))
-  if (window || days) {
-    return [days, window ? `${window.first}–${window.last}` : ''].filter(Boolean).join(' · ')
-  }
+const placeLabel = (variant: RouteVariant) => {
   const dest = shortPlaceName(textByLocale(variant.dest_tc, variant.dest_en))
-  if (isCircularVariant(variant)) {
+  if (isCircularVariant(variant) && dest) {
     return t('details.circular', { name: dest })
   }
-  return dest ? t('plan.to', { name: dest }) : t('details.special')
+  return dest ? t('plan.to', { name: dest }) : ''
+}
+
+const origLabel = (variant: RouteVariant) => {
+  if (isCircularVariant(variant)) {
+    return ''
+  }
+  const orig = shortPlaceName(textByLocale(variant.orig_tc, variant.orig_en))
+  return orig ? t('details.from', { name: orig }) : ''
+}
+
+const scheduleLabel = (variant: RouteVariant) => {
+  const window = getVariantServiceWindow(variant)
+  const days = dayLabel(getVariantDayKind(variant))
+  return [days, window ? `${window.first}–${window.last}` : ''].filter(Boolean).join(' · ')
+}
+
+const variantLabel = (variant: RouteVariant) => {
+  const place = placeLabel(variant)
+  const base = [place].filter(Boolean).join(' · ')
+  const peers = visibleVariants.value.filter((item) => {
+    return [placeLabel(item), scheduleLabel(item)].filter(Boolean).join(' · ') === base
+  })
+  if (peers.length <= 1) {
+    return base || t('details.special')
+  }
+  console.log([place || t('details.special'), origLabel(variant)].filter(Boolean).join(' · '))
+  return [place || t('details.special'), origLabel(variant)].filter(Boolean).join(' · ')
 }
 
 const timetableLabel = computed(() => {
@@ -222,6 +254,7 @@ const timetableLabel = computed(() => {
         ? t('details.everyMinRange', { min: window.headwayMin, max: window.headwayMax })
         : t('details.everyMin', { n: window.headwayMin })
   }
+
   return [
     days,
     window && !window.serving ? t('details.notRunning') : '',
@@ -310,7 +343,7 @@ const handleViewTrafficCamClick = (camData?: TrafficCam) => {
 
 const refreshEtas = async (force = false) => {
   const busRoute = activeRoute.value
-  if (!busRoute || !displayStops.value.length) {
+  if (!busRoute || !displayStops.value.length || !isServingNow.value) {
     return
   }
 
@@ -391,6 +424,9 @@ const selectVariant = async (variant: RouteVariant) => {
 }
 
 const handleSwitchDirection = () => {
+  if (!canSwitchDirection.value || isPageLoading.value) {
+    return
+  }
   isOutbound.value = !isOutbound.value
   fetchDetails(true)
 }

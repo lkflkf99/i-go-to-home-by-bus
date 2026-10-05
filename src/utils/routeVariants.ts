@@ -127,7 +127,13 @@ export const variantsForDirection = (
   variants: RouteVariant[],
   direction: 'inbound' | 'outbound'
 ) => {
-  return variants.filter((variant) => boundMatchesDirection(variant.bound, direction))
+  const hasCircular = variants.some((variant) => variant.bound === 'OI')
+  return variants.filter((variant) => {
+    if (hasCircular && variant.bound !== 'OI') {
+      return false
+    }
+    return boundMatchesDirection(variant.bound, direction)
+  })
 }
 
 export const pickRouteVariant = (

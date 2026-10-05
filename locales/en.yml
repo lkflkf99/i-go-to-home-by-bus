@@ -61,6 +61,7 @@ details:
   everyMinRange: every {min}–{max} min
   notRunning: Not running now
   circular: '{name} (circular)'
+  from: From {name}
   weekdays: Weekdays
   weekend: Weekends & holidays
   saturday: Saturdays

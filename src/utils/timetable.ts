@@ -142,6 +142,14 @@ const isHoliday = (holidays: string[], now: ReturnType<typeof hongKongNow>) => {
   return now.day === 0 || holidays.includes(now.ymd)
 }
 
+const allSlots = (freq: RouteFreq) => {
+  const merged: Record<string, FreqSlot> = {}
+  Object.values(freq).forEach((slots) => {
+    Object.assign(merged, slots)
+  })
+  return merged
+}
+
 const todaysSlots = (freq: RouteFreq, serviceDayMap: ServiceDayMap, holidays: string[]) => {
   const now = hongKongNow()
   const holiday = isHoliday(holidays, now)
@@ -197,7 +205,11 @@ export const serviceWindowFromFreq = (freq?: RouteFreq | null): ServiceWindow | 
 
   const store = readStore()
   const { now, merged } = todaysSlots(freq, store.serviceDayMap, store.holidays)
-  const windows = slotWindows(merged)
+  let windows = slotWindows(merged)
+  const runsToday = windows.length > 0
+  if (!runsToday) {
+    windows = slotWindows(allSlots(freq))
+  }
   if (!windows.length) {
     return null
   }
@@ -211,8 +223,9 @@ export const serviceWindowFromFreq = (freq?: RouteFreq | null): ServiceWindow | 
     .sort((a, b) => a - b)
 
   const serving =
-    windows.some((item) => containsNow(item, now.minutes)) ||
-    (last > 1440 && (now.minutes >= first || now.minutes <= last - 1440))
+    runsToday &&
+    (windows.some((item) => containsNow(item, now.minutes)) ||
+      (last > 1440 && (now.minutes >= first || now.minutes <= last - 1440)))
 
   return {
     first: formatHm(first),
