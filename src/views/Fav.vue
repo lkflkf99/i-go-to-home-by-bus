@@ -1,27 +1,33 @@
 <template>
   <div>
-    <div class="action-row">
+    <div class="action-row toolbar-row">
       <el-button
+        class="toolbar-chip"
         round
         plain
-        type="primary"
         :class="{ 'is-active-filter': commuteFilter === 'home' }"
         @click="toggleFilter('home')"
       >
         {{ t('fav.goHome') }}
       </el-button>
       <el-button
+        class="toolbar-chip"
         round
         plain
-        type="primary"
         :class="{ 'is-active-filter': commuteFilter === 'work' }"
         @click="toggleFilter('work')"
       >
         {{ t('fav.goWork') }}
       </el-button>
-      <el-button round plain type="primary" :icon="Refresh" :loading="isRefreshing" @click="handleRefresh">
-        {{ t('fav.refresh') }}
-      </el-button>
+      <el-button
+        class="toolbar-btn"
+        circle
+        plain
+        :icon="Refresh"
+        :aria-label="t('fav.refresh')"
+        :loading="isRefreshing"
+        @click="handleRefresh"
+      />
     </div>
 
     <p v-if="filterBanner" class="filter-banner">{{ filterBanner }}</p>
@@ -37,42 +43,46 @@
         :key="routeKey(item)"
         @click="goToDetails(item)"
       >
-        <div class="flex min-w-0 gap-x-3">
-          <div class="route-badge">{{ item.co }}</div>
-          <div class="min-w-0 flex-auto">
+        <div class="listing-route">
+          <div class="listing-title-row">
+            <div class="route-badge">{{ item.co }}</div>
             <p class="route-number">{{ item.route }}</p>
-            <p class="route-meta">
-              {{ textByLocale(item.orig_tc, item.orig_en) }} - {{ textByLocale(item.dest_tc, item.dest_en) }}
-            </p>
-            <p v-if="stopMeta(item)" class="route-meta">{{ stopMeta(item) }}</p>
-            <el-skeleton v-else-if="item.etasLoading" animated>
-              <template #template>
-                <el-skeleton-item variant="text" class="route-skel-meta" />
-              </template>
-            </el-skeleton>
+            <button class="star-hit" type="button" :aria-label="t('fav.remove')" @click.stop="store.removeFav(item)">
+              <el-icon :size="20" color="#ffcc00">
+                <StarFilled />
+              </el-icon>
+            </button>
           </div>
-        </div>
-        <div class="eta-stack">
-          <button class="star-hit" type="button" :aria-label="t('fav.remove')" @click.stop="store.removeFav(item)">
-            <el-icon :size="20" color="#ffcc00">
-              <StarFilled />
-            </el-icon>
-          </button>
-          <el-skeleton v-if="item.etasLoading" animated class="eta-skeleton">
-            <template #template>
-              <el-skeleton-item variant="text" class="eta-skeleton-primary" />
-              <el-skeleton-item variant="text" class="eta-skeleton-secondary" />
-            </template>
-          </el-skeleton>
-          <template v-else>
-            <p
-              v-for="(eta, index) in displayEtas(item.etas)"
-              :key="index"
-              :class="index === 0 ? 'eta-primary' : 'eta-secondary'"
-            >
-              {{ formatEta(eta) }}
-            </p>
-          </template>
+          <div class="listing-detail-row">
+            <div class="min-w-0 flex-auto">
+              <p class="route-meta">
+                {{ textByLocale(item.orig_tc, item.orig_en) }} - {{ textByLocale(item.dest_tc, item.dest_en) }}
+              </p>
+              <p v-if="stopMeta(item)" class="route-meta">{{ stopMeta(item) }}</p>
+              <el-skeleton v-else-if="item.etasLoading" animated>
+                <template #template>
+                  <el-skeleton-item variant="text" class="route-skel-meta" />
+                </template>
+              </el-skeleton>
+            </div>
+            <div class="eta-stack">
+              <el-skeleton v-if="item.etasLoading" animated class="eta-skeleton">
+                <template #template>
+                  <el-skeleton-item variant="text" class="eta-skeleton-primary" />
+                  <el-skeleton-item variant="text" class="eta-skeleton-secondary" />
+                </template>
+              </el-skeleton>
+              <template v-else>
+                <p
+                  v-for="(eta, index) in displayEtas(item.etas)"
+                  :key="index"
+                  :class="index === 0 ? 'eta-primary' : 'eta-secondary'"
+                >
+                  {{ formatEta(eta) }}
+                </p>
+              </template>
+            </div>
+          </div>
         </div>
       </li>
       <li v-if="commuteFilter && !visibleFavorites.length" class="route-row">
@@ -295,8 +305,39 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.is-active-filter {
+.toolbar-row {
+  align-items: center;
+}
+
+.toolbar-row.action-row .toolbar-btn {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  margin-left: auto;
+  --el-button-text-color: var(--el-color-primary);
+  --el-button-bg-color: var(--app-surface);
+  --el-button-border-color: var(--app-separator);
+  --el-button-hover-text-color: var(--el-color-primary);
+  --el-button-hover-bg-color: var(--row-active);
+  --el-button-hover-border-color: var(--app-separator);
+}
+
+.toolbar-row.action-row .toolbar-chip {
+  --el-button-bg-color: var(--app-surface);
+  --el-button-text-color: var(--app-text);
+  --el-button-border-color: var(--app-separator);
+  --el-button-hover-bg-color: var(--row-active);
+  --el-button-hover-text-color: var(--app-text);
+  --el-button-hover-border-color: var(--app-separator);
+}
+
+.toolbar-row.action-row .toolbar-chip.is-active-filter {
   --el-button-bg-color: var(--el-color-primary);
   --el-button-text-color: #fff;
   --el-button-border-color: var(--el-color-primary);
-}</style>
+  --el-button-hover-bg-color: var(--el-color-primary);
+  --el-button-hover-text-color: #fff;
+  --el-button-hover-border-color: var(--el-color-primary);
+}
+</style>

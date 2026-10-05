@@ -9,8 +9,8 @@ nav:
   back: Back
 settings:
   location: Location
-  locationOn: Using your current location
-  locationOff: Nearby ETAs and map are paused
+  locationOn: Location services are enabled
+  locationOff: Location services are paused
   language: Language
   langEn: English
   langZh: 繁體中文
@@ -59,7 +59,7 @@ details:
   firstLast: First {first} · Last {last}
   everyMin: every {n} min
   everyMinRange: every {min}–{max} min
-  notRunning: Not running now
+  notRunning: Out of service
   circular: '{name} (circular)'
   from: From {name}
   weekdays: Weekdays
@@ -76,7 +76,7 @@ place:
   clear: Clear
   noMatch: No stops match that name
   noStops: No cached stops yet. Update local data first.
-  noLocation: Could not read your location
+  noLocation: Could not determine your location
 location:
   denied: Location permission was denied. Enable it in the browser or system settings.
   unsupported: Geolocation is not supported by this browser.

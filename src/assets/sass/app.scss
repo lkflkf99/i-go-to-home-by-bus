@@ -276,6 +276,48 @@ html.is-app-keyboard .app-content {
   color: var(--el-color-primary);
 }
 
+.listing-route {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
+.listing-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.listing-title-row .route-badge {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  min-width: 0;
+  text-align: left;
+}
+
+.listing-title-row .route-number {
+  flex: 1;
+  min-width: 0;
+}
+
+.listing-title-row .star-hit {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+}
+
+.listing-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.listing-detail-row .eta-stack {
+  padding-top: 2px;
+}
+
 .route-number {
   font-size: 20px;
   font-weight: 700;
@@ -308,9 +350,10 @@ html.is-app-keyboard .app-content {
 }
 
 .el-skeleton__item.route-skel-badge {
-  width: 28px;
-  height: 10px;
-  margin-top: 6px;
+  width: 40px;
+  height: 20px;
+  margin-top: 0;
+  flex-shrink: 0;
 }
 
 .el-skeleton__item.route-skel-title,
@@ -321,6 +364,10 @@ html.is-app-keyboard .app-content {
 .el-skeleton__item.route-skel-title {
   height: 20px;
   width: 52px;
+}
+
+.listing-title-row .el-skeleton__item.route-skel-title {
+  margin-top: 0;
 }
 
 .el-skeleton__item.route-skel-title.is-stop {
@@ -524,6 +571,58 @@ html.is-app-keyboard .app-content {
   border: 2px solid var(--app-surface);
 }
 
+.user-location {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  pointer-events: none;
+}
+
+.user-location-pulse,
+.user-location-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+}
+
+.user-location-pulse {
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  background: rgba(0, 122, 255, 0.32);
+  animation: user-location-pulse 2s ease-out infinite;
+}
+
+.user-location-dot {
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  background: #007aff;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+@keyframes user-location-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+
+  100% {
+    transform: scale(3.4);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-location-pulse {
+    animation: none;
+    opacity: 0.2;
+    transform: scale(2.2);
+  }
+}
+
 html.dark .stop-marker,
 html.blackPink .stop-marker {
   filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.65));
@@ -620,6 +719,16 @@ html.blackPink .stop-marker-pin {
 
 .el-button {
   -webkit-tap-highlight-color: transparent;
+}
+
+.el-button + .el-button {
+  margin-left: 0;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .el-icon.primary {

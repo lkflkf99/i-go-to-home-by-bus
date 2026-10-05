@@ -8,9 +8,9 @@ nav:
   settings: 設定
   back: 返回
 settings:
-  location: 位置
-  locationOn: 使用你而家嘅位置
-  locationOff: 已關閉附近到站時間同地圖
+  location: 定位
+  locationOn: 定位服務已啟用
+  locationOff: 定位服務已暫停
   language: 語言
   langEn: English
   langZh: 繁體中文
@@ -59,13 +59,13 @@ details:
   firstLast: 頭班 {first} · 尾班 {last}
   everyMin: 每 {n} 分鐘一班
   everyMinRange: 每 {min}–{max} 分鐘一班
-  notRunning: 而家冇開呢班
+  notRunning: 暫停服務
   circular: '{name}（循環）'
   from: 由 {name}
   weekdays: 平日
-  weekend: 週末及假期
+  weekend: 週末及公眾假期
   saturday: 星期六
-  sundayHoliday: 星期日及假期
+  sundayHoliday: 星期日及公眾假期
   daily: 每日
   special: 特別班次
 map:
@@ -76,10 +76,10 @@ place:
   clear: 清除
   noMatch: 冇符合嘅車站
   noStops: 未有本地車站資料。請先更新本地資料。
-  noLocation: 讀唔到你嘅位置
+  noLocation: 未能確定你嘅位置
 location:
-  denied: 瀏覽器拒絕咗位置權限。請喺瀏覽器或系統設定開啟。
-  unsupported: 呢個瀏覽器唔支援定位。
+  denied: 請喺瀏覽器或系統設定開啟定位服務權限。
+  unsupported: 瀏覽器唔支援定位服務。
 eta:
   due: 即將到
   min: '{n} 分鐘'

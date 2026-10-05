@@ -22,22 +22,22 @@
         :key="index"
         @click="() => goToDetails(item, item.co || 'KMB')"
       >
-        <div class="flex min-w-0 gap-x-3">
-          <div class="route-badge">{{ item.co || 'KMB' }}</div>
-          <div class="min-w-0 flex-auto">
+        <div class="listing-route">
+          <div class="listing-title-row">
+            <div class="route-badge">{{ item.co || 'KMB' }}</div>
             <p class="route-number">
               {{ item.route }}
               <span v-if="item.service_type > 1" class="route-meta">({{ t('search.special') }})</span>
             </p>
-            <p class="route-meta">{{ textByLocale(item.orig_tc, item.orig_en) }} - {{ textByLocale(item.dest_tc, item.dest_en) }}</p>
+            <button class="star-hit" type="button" :aria-label="t('search.toggleFav')" @click.stop="() => commuteStore.toggleFav(item)">
+              <el-icon :size="20" color="#ffcc00">
+                <StarFilled v-if="commuteStore.isFav(item)" />
+                <Star v-else />
+              </el-icon>
+            </button>
           </div>
+          <p class="route-meta">{{ textByLocale(item.orig_tc, item.orig_en) }} - {{ textByLocale(item.dest_tc, item.dest_en) }}</p>
         </div>
-        <button class="star-hit" type="button" :aria-label="t('search.toggleFav')" @click.stop="() => commuteStore.toggleFav(item)">
-          <el-icon :size="22" color="#ffcc00">
-            <StarFilled v-if="commuteStore.isFav(item)" />
-            <Star v-else />
-          </el-icon>
-        </button>
       </li>
     </ul>
 

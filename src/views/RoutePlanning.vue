@@ -28,36 +28,40 @@
         :key="`${item.co}-${item.route}-${item.dest_tc}-${item.boardStopId}`"
         @click="goToDetails(item)"
       >
-        <div class="flex min-w-0 gap-x-3">
-          <div class="route-badge">{{ item.co }}</div>
-          <div class="min-w-0 flex-auto">
+        <div class="listing-route">
+          <div class="listing-title-row">
+            <div class="route-badge">{{ item.co }}</div>
             <p class="route-number">{{ item.route }}</p>
-            <p class="route-meta">{{ t('plan.to', { name: textByLocale(item.dest_tc, item.dest_en) }) }}</p>
-            <p class="route-meta">
-              {{
-                [
-                  t('plan.boardAt', { name: textByLocale(item.boardStopName, item.boardStopNameEn) }),
-                  item.walkDistance !== null ? formatMeters(item.walkDistance) : '',
-                  item.journeyMin ? t('plan.rideMin', { n: item.journeyMin }) : '',
-                  formatFare(item.fare),
-                ]
-                  .filter(Boolean)
-                  .join(' · ')
-              }}
-            </p>
           </div>
-        </div>
-        <div class="eta-stack">
-          <p
-            v-for="(eta, index) in item.etas.length ? item.etas : [null]"
-            :key="index"
-            :class="index === 0 ? 'eta-primary' : 'eta-secondary'"
-          >
-            {{ formatEta(eta) }}
-          </p>
-          <p v-if="!item.etas[0] && item.serving === false" class="eta-secondary">
-            {{ t('details.notRunning') }}
-          </p>
+          <div class="listing-detail-row">
+            <div class="min-w-0 flex-auto">
+              <p class="route-meta">{{ t('plan.to', { name: textByLocale(item.dest_tc, item.dest_en) }) }}</p>
+              <p class="route-meta">
+                {{
+                  [
+                    t('plan.boardAt', { name: textByLocale(item.boardStopName, item.boardStopNameEn) }),
+                    item.walkDistance !== null ? formatMeters(item.walkDistance) : '',
+                    item.journeyMin ? t('plan.rideMin', { n: item.journeyMin }) : '',
+                    formatFare(item.fare),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')
+                }}
+              </p>
+            </div>
+            <div class="eta-stack">
+              <p
+                v-for="(eta, index) in item.etas.length ? item.etas : [null]"
+                :key="index"
+                :class="index === 0 ? 'eta-primary' : 'eta-secondary'"
+              >
+                {{ formatEta(eta) }}
+              </p>
+              <p v-if="!item.etas[0] && item.serving === false" class="eta-secondary">
+                {{ t('details.notRunning') }}
+              </p>
+            </div>
+          </div>
         </div>
       </li>
     </ul>

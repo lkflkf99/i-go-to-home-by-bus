@@ -12,17 +12,19 @@
     :styles="mapStyles"
     ref="mapRef"
   >
-    <Circle
+    <CustomMarker
+      v-if="isMapReady"
       :options="{
-        center,
-        radius: 16,
-        strokeColor: accentColor,
-        strokeOpacity: 0.8,
-        strokeWeight: 3,
-        fillColor: accentColor,
-        fillOpacity: 0.35,
+        position: center,
+        anchorPoint: 'CENTER',
+        zIndex: 5000,
       }"
-    />
+    >
+      <div class="user-location" aria-hidden="true">
+        <span class="user-location-pulse"></span>
+        <span class="user-location-dot"></span>
+      </div>
+    </CustomMarker>
     <CustomMarker
       v-for="item in nearbyStops"
       :key="item.id"
@@ -100,7 +102,7 @@ import {
   appTheme,
   buildMapStyles,
 } from '@/utils'
-import { GoogleMap, CustomMarker, Circle } from 'vue3-google-map'
+import { GoogleMap, CustomMarker } from 'vue3-google-map'
 import { groupStopEtas, loadNearbyMapStops, fetchStopEtas } from '@/services/CommuteService'
 import type { MapStop, StopRouteSummary } from '@/services/CommuteService'
 import { useRouter } from 'vue-router'
@@ -113,23 +115,14 @@ const router = useRouter()
 const isLoading = ref(true)
 const center = ref<{ lat: number; lng: number } | null>(null)
 const nearbyStops = ref<MapStop[]>([])
-const accentColor = ref('#409EFF')
 const maxRouteChips = 4
 const mapStyles = computed(() => buildMapStyles(appTheme.value))
+const isMapReady = computed(() => Boolean(mapRef.value?.ready))
 const dialog = ref({
   title: '',
   visible: false,
   routes: [] as StopRouteSummary[],
 })
-
-const readAccentColor = () => {
-  const value = getComputedStyle(document.documentElement)
-    .getPropertyValue('--el-color-primary')
-    .trim()
-  if (value) {
-    accentColor.value = value
-  }
-}
 
 const visibleRoutes = (item: MapStop) => item.routeLabels.slice(0, maxRouteChips)
 
@@ -186,12 +179,7 @@ watch(
   }
 )
 
-watch(appTheme, () => {
-  readAccentColor()
-})
-
 onMounted(() => {
-  readAccentColor()
   loadNearbyStops()
 })
 
