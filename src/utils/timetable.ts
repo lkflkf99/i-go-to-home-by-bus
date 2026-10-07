@@ -76,6 +76,15 @@ const metaKey = (
   return routeCatalogKey(getCompany(route), route.route, route.service_type, bound)
 }
 
+export const getTimetableMeta = (
+  company: 'KMB' | 'CTB',
+  route: string,
+  serviceType: string | number | undefined,
+  bound: 'I' | 'O'
+) => {
+  return readStore().routes[routeCatalogKey(company, route, serviceType, bound)]
+}
+
 export const getRouteJt = (
   route: Pick<BusRoute, 'route' | 'service_type' | 'co'>,
   direction: 'inbound' | 'outbound' | 'I' | 'O'

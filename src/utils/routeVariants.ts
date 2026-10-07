@@ -1,7 +1,7 @@
 import type { BusRoute, Company } from '@/model'
 import { getCompany } from '@/utils/route'
 import type { RouteFreq } from '@/utils/timetable'
-import { describeServiceDays, serviceWindowFromFreq } from '@/utils/timetable'
+import { describeServiceDays, getTimetableMeta, serviceWindowFromFreq } from '@/utils/timetable'
 import { getCachedRoutes } from '@/utils/catalog'
 import { getRouteStopMap } from '@/utils/routeStops'
 
@@ -25,10 +25,40 @@ const STORAGE_KEY = 'routeVariants'
 
 let memory: RouteVariantMap | null = null
 
+const stopIdsFor = (variant: RouteVariant) => {
+  if (variant.stopIds?.length) {
+    return variant.stopIds
+  }
+  const map = getRouteStopMap()
+  const bounds = variant.bound === 'I' ? (['I'] as const) : (['O', 'I'] as const)
+  for (const bound of bounds) {
+    const ids = map[`${variant.co}-${variant.route}-${variant.service_type}-${bound}`]
+    if (ids?.length) {
+      return ids
+    }
+  }
+  return []
+}
+
+const hydrateVariant = (variant: RouteVariant): RouteVariant => {
+  const stopIds = stopIdsFor(variant)
+  const bound = variant.bound === 'I' ? 'I' : 'O'
+  const meta = getTimetableMeta(variant.co, variant.route, variant.service_type, bound)
+  return {
+    ...variant,
+    stopIds,
+    ...(variant.freq ? {} : meta?.freq ? { freq: meta.freq } : {}),
+    ...(variant.jt == null && meta?.jt != null ? { jt: meta.jt } : {}),
+  }
+}
+
 const readVariants = (): RouteVariantMap => {
   if (!memory) {
     try {
-      memory = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') as RouteVariantMap
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') as RouteVariantMap
+      memory = Object.fromEntries(
+        Object.entries(stored).map(([key, variants]) => [key, variants.map(hydrateVariant)])
+      )
     } catch {
       memory = {}
     }
@@ -38,7 +68,13 @@ const readVariants = (): RouteVariantMap => {
 
 export const saveRouteVariants = (variants: RouteVariantMap) => {
   memory = variants
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(variants))
+  const packed = Object.fromEntries(
+    Object.entries(variants).map(([key, list]) => [
+      key,
+      list.map(({ stopIds: _stopIds, freq: _freq, ...variant }) => variant),
+    ])
+  )
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(packed))
 }
 
 export const resetRouteVariants = () => {

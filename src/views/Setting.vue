@@ -25,7 +25,7 @@
         <p class="text-sm font-semibold" style="color: var(--app-text)">{{ t('settings.updateDb') }}</p>
         <p class="route-meta">
           {{ t('settings.lastUpdated') }}:
-          {{ lastUpdateTime ? format(lastUpdateTime, 'YYYY-MM-DD HH:mm', { locale: dateLocale }) : '-' }}
+          {{ lastUpdateTime ? format(lastUpdateTime, 'yyyy-MM-dd HH:mm', { locale: dateLocale }) : '-' }}
         </p>
       </div>
     </li>
