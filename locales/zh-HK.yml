@@ -23,8 +23,8 @@ settings:
   selectTheme: 選擇主題
   cancel: 取消
   confirm: 確定
-  updateDb: 更新本地資料
-  lastUpdated: 上次更新
+  updateDb: 下載巴士路線資料
+  lastUpdated: 上次更新日期
   setHome: 設定屋企巴士站
   setWork: 設定公司巴士站
   searchStop: 搜尋巴士站名稱

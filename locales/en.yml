@@ -23,8 +23,8 @@ settings:
   selectTheme: Select theme
   cancel: Cancel
   confirm: Confirm
-  updateDb: Update local data
-  lastUpdated: Last updated
+  updateDb: Download bus routes data
+  lastUpdated: Last updated on
   setHome: Set home stop
   setWork: Set work stop
   searchStop: Search a stop name

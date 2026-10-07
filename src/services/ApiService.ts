@@ -8,6 +8,21 @@ interface RetryRequestConfig extends AxiosRequestConfig {
 
 const RETRY_STATUSES = new Set([403, 408, 429, 502, 503])
 
+const UPSTREAMS: Array<[prefix: string, origin: string]> = [
+  ['/kmb', 'https://data.etabus.gov.hk/v1/transport/kmb'],
+  ['/ctb', 'https://rt.data.gov.hk/v1/transport/citybus-nwfb'],
+  ['/batch', 'https://rt.data.gov.hk/v1/transport/batch'],
+]
+
+const toUpstreamUrl = (url: string) => {
+  for (const [prefix, origin] of UPSTREAMS) {
+    if (url === prefix || url.startsWith(`${prefix}/`)) {
+      return origin + url.slice(prefix.length)
+    }
+  }
+  return null
+}
+
 const instance = axios.create({
   baseURL: '/api',
   timeout: 30000,
@@ -18,6 +33,13 @@ const instance = axios.create({
 
 instance.interceptors.request.use((config) => {
   NProgress.start()
+  if (!import.meta.env.DEV && config.url) {
+    const upstream = toUpstreamUrl(config.url)
+    if (upstream) {
+      config.url = upstream
+      config.baseURL = undefined
+    }
+  }
   return config
 })
 
