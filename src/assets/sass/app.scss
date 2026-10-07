@@ -582,6 +582,38 @@ html.is-app-keyboard .app-content {
   border: 2px solid var(--app-surface);
 }
 
+.route-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  filter: drop-shadow(0 4px 10px rgba(17, 24, 39, 0.18));
+}
+
+.route-pin-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--el-color-primary);
+  border: 2px solid var(--app-surface);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.route-pin.is-active .route-pin-dot {
+  transform: scale(1.28);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--el-color-primary) 40%, transparent);
+}
+
 .user-location {
   position: relative;
   width: 56px;
@@ -656,6 +688,16 @@ html.blackPink .stop-marker-pin {
   height: 12px;
   border-color: #ffffff;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--el-color-primary) 45%, transparent);
+}
+
+html.dark .route-pin,
+html.blackPink .route-pin {
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.65));
+}
+
+html.dark .route-pin-dot,
+html.blackPink .route-pin-dot {
+  border-color: #ffffff;
 }
 
 @media (max-width: 640px), (display-mode: standalone) {

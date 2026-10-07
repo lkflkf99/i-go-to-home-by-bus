@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="route-details">
     <div class="action-row toolbar-row">
       <span v-if="timetableLabel" class="action-window">{{ timetableLabel }}</span>
       <el-button
@@ -33,14 +33,64 @@
         {{ variantLabel(variant) }}
       </el-button>
     </div>
+    <div v-if="isPageLoading || routePoints.length" class="route-map-wrap">
+      <div v-if="isPageLoading" class="route-map map-canvas" v-loading="true"></div>
+      <GoogleMap
+        v-else
+        ref="mapRef"
+        class="route-map map-canvas"
+        :class="themeClass"
+        :api-key="GOOGLE_MAPS_API_KEY"
+        :center="mapCenter"
+        :zoom="13"
+        :styles="mapStyles"
+        gesture-handling="cooperative"
+      >
+        <Polyline :options="polylineOptions" />
+        <CustomMarker
+          v-if="isMapReady && userLocation"
+          :options="{
+            position: userLocation,
+            anchorPoint: 'CENTER',
+            zIndex: 5000,
+          }"
+        >
+          <div class="user-location" aria-hidden="true">
+            <span class="user-location-pulse"></span>
+            <span class="user-location-dot"></span>
+          </div>
+        </CustomMarker>
+        <CustomMarker
+          v-for="(point, index) in routePoints"
+          :key="stopKey(point.stop)"
+          :options="{
+            position: { lat: point.lat, lng: point.lng },
+            anchorPoint: 'CENTER',
+            zIndex: focusedStopKey === stopKey(point.stop) ? 4000 : 100 + index,
+          }"
+        >
+          <button
+            class="route-pin"
+            :class="{ 'is-active': focusedStopKey === stopKey(point.stop) }"
+            type="button"
+            :aria-label="textByLocale(point.stop.stop_tc, point.stop.stop_en)"
+            @click.stop="focusStop(point.stop)"
+          >
+            <span class="route-pin-dot">{{ point.stop.seq }}</span>
+          </button>
+        </CustomMarker>
+      </GoogleMap>
+    </div>
     <ul class="settings-group" v-if="isPageLoading">
       <RouteRowSkeleton v-for="index in 8" :key="index" variant="stop" :lines="1" />
     </ul>
     <ul class="settings-group" v-else>
       <li
         class="route-row"
-        v-for="(stop, index) in displayStops"
-        :key="index"
+        :class="{ 'is-map-focus': focusedStopKey === stopKey(stop) }"
+        v-for="stop in displayStops"
+        :key="stopKey(stop)"
+        :ref="(el) => setStopRow(stopKey(stop), el)"
         @click="() => handleStopClick(stop)"
       >
         <div class="flex min-w-0 gap-x-3">
@@ -108,11 +158,14 @@ import {
   isVariantServingNow,
   pickRouteVariant,
   textByLocale,
+  appTheme,
   toVariantRoute,
   variantKey,
   variantsForDirection,
 } from '@/utils'
 import type { RouteVariant } from '@/utils/routeVariants'
+import { GoogleMap, CustomMarker, Polyline } from 'vue3-google-map'
+import { GOOGLE_MAPS_API_KEY, useThemedMap } from '@/composables/useThemedMap'
 import { usePrefsStore } from '@/stores/prefs'
 import { loadRouteEtas, loadStopsForDirection } from '@/services/CommuteService'
 import { ensureHkbusRouteIndex } from '@/services/BusService'
@@ -142,7 +195,13 @@ interface DisplayStops {
 
 const { t } = useI18n()
 const prefs = usePrefsStore()
+const { mapRef, mapStyles, isMapReady, themeClass, fitRoute } = useThemedMap({
+  gestureHandling: 'cooperative',
+})
 const displayStops = ref<DisplayStops[]>([])
+const userLocation = ref<{ lat: number; lng: number } | null>(null)
+const focusedStopKey = ref('')
+const stopRowEls = new Map<string, HTMLElement>()
 const allVariants = ref<RouteVariant[]>([])
 const selectedVariant = ref<RouteVariant | null>(null)
 const route = useRoute()
@@ -291,6 +350,60 @@ const stopMeta = (stop: DisplayStops) => {
   return [formatMeters(stop.distance), formatFare(stop.fare)].filter(Boolean).join(' · ')
 }
 
+const stopKey = (stop: DisplayStops) => `${stop.stop}-${stop.seq}`
+
+const routePoints = computed(() =>
+  displayStops.value
+    .map((stop) => ({
+      stop,
+      lat: Number(stop.lat),
+      lng: Number(stop.long),
+    }))
+    .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
+)
+
+const routeSignature = computed(() => routePoints.value.map((point) => `${point.lat},${point.lng}`).join('|'))
+
+const mapCenter = computed(() => {
+  const first = routePoints.value[0]
+  return first ? { lat: first.lat, lng: first.lng } : { lat: 22.3193, lng: 114.1694 }
+})
+
+const routeStroke = computed(() => {
+  appTheme.value
+  return getComputedStyle(document.documentElement).getPropertyValue('--el-color-primary').trim() || '#409eff'
+})
+
+const polylineOptions = computed(() => ({
+  path: routePoints.value.map(({ lat, lng }) => ({ lat, lng })),
+  strokeColor: routeStroke.value,
+  strokeOpacity: 0.95,
+  strokeWeight: 4,
+  geodesic: false,
+  clickable: false,
+  zIndex: 1,
+}))
+
+const rememberLocation = (location: GeoLocation | null) => {
+  userLocation.value = location ? { lat: location.latitude, lng: location.longitude } : null
+}
+
+const setStopRow = (key: string, el: unknown) => {
+  if (el instanceof HTMLElement) {
+    stopRowEls.set(key, el)
+    return
+  }
+  stopRowEls.delete(key)
+}
+
+const focusStop = (stop: DisplayStops) => {
+  const key = stopKey(stop)
+  focusedStopKey.value = key
+  nextTick(() => {
+    stopRowEls.get(key)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  })
+}
+
 const applyDistances = (stops: DisplayStops[], location: GeoLocation | null) => {
   return stops.map((stop) => ({
     ...stop,
@@ -388,6 +501,8 @@ const fetchDetails = async (keepVariant = false) => {
   try {
     await ensureHkbusRouteIndex().catch(() => undefined)
     const currLocation = await getCurrentLocationOrNull()
+    rememberLocation(currLocation)
+    focusedStopKey.value = ''
     allVariants.value = getRouteVariants(getCompany(busRoute), busRoute.route)
     const directional = variantsForDirection(allVariants.value, getDirection())
     const currentKey = selectedVariant.value ? variantKey(selectedVariant.value) : ''
@@ -409,10 +524,12 @@ const selectVariant = async (variant: RouteVariant) => {
   }
 
   selectedVariant.value = variant
+  focusedStopKey.value = ''
   const busRoute = toVariantRoute(variant)
   isPageLoading.value = true
   try {
     const currLocation = await getCurrentLocationOrNull()
+    rememberLocation(currLocation)
     await loadStopsFor(variant, busRoute, currLocation)
   } finally {
     isPageLoading.value = false
@@ -436,6 +553,12 @@ onMounted(() => {
   fetchDetails()
 })
 
+watch([isMapReady, routeSignature], () => {
+  nextTick(() => {
+    fitRoute(routePoints.value.map(({ lat, lng }) => ({ lat, lng })))
+  })
+})
+
 watch(
   () => prefs.locationEnabled,
   async () => {
@@ -443,12 +566,44 @@ watch(
       return
     }
     const currLocation = await getCurrentLocationOrNull()
+    rememberLocation(currLocation)
     displayStops.value = applyDistances(displayStops.value, currLocation)
   }
 )
 </script>
 
 <style scoped>
+.route-details {
+  --route-map-height: 200px;
+}
+
+.route-map-wrap {
+  height: var(--route-map-height);
+  margin-top: 8px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 0.5px solid var(--app-separator);
+  background: var(--app-bg);
+}
+
+.route-map {
+  width: 100%;
+  height: 100%;
+}
+
+.route-map-wrap :deep(.mapdiv) {
+  width: 100%;
+  height: 100%;
+}
+
+.route-row.is-map-focus {
+  background: var(--row-active);
+  margin-left: -16px;
+  margin-right: -16px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
 .toolbar-row {
   align-items: center;
 }
