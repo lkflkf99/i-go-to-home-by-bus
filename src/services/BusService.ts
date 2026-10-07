@@ -305,16 +305,9 @@ const fetchHkbusCatalog = async () => {
   }
 }
 
-export const ensureHkbusRouteIndex = async () => {
-  localStorage.removeItem('stopAliases')
-  if (Object.keys(getRouteStopMap()).length && hasTimetableData() && hasRouteVariants()) {
-    return
-  }
+let catalogRequest: Promise<string> | null = null
 
-  persistHkbusIndex(await fetchHkbusCatalog())
-}
-
-export const fetchBusData = async () => {
+const loadCatalog = async () => {
   const hkbus = await fetchHkbusCatalog()
 
   persistHkbusIndex(hkbus)
@@ -322,10 +315,33 @@ export const fetchBusData = async () => {
     stops: hkbus.kmbStops.concat(hkbus.ctbStops),
     routes: hkbus.routes,
   })
-  localStorage.setItem('dbLastUpdateTime', new Date().toISOString())
+  const updatedAt = new Date().toISOString()
+  localStorage.setItem('dbLastUpdateTime', updatedAt)
   invalidatePrefix('route-stop:')
   invalidatePrefix('stop:')
   invalidatePrefix('eta:')
 
-  return new Date().toISOString()
+  return updatedAt
+}
+
+export const ensureHkbusRouteIndex = async () => {
+  localStorage.removeItem('stopAliases')
+  if (Object.keys(getRouteStopMap()).length && hasTimetableData() && hasRouteVariants()) {
+    return
+  }
+  if (!isCatalogStale()) {
+    return
+  }
+
+  await fetchBusData()
+}
+
+export const fetchBusData = () => {
+  if (!catalogRequest) {
+    catalogRequest = loadCatalog().finally(() => {
+      catalogRequest = null
+    })
+  }
+
+  return catalogRequest
 }

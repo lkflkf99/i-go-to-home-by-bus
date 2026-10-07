@@ -164,16 +164,9 @@ onMounted(async () => {
   syncNativeChrome()
   unbindViewport = bindNativeViewport()
 
-  if (!isCatalogStale()) {
-    return
+  if (isCatalogStale()) {
+    await fetchBusData()
   }
-
-  if (localStorage.getItem('dbLastUpdateTime')) {
-    fetchBusData()
-    return
-  }
-
-  await fetchBusData()
 })
 
 onBeforeUnmount(() => {
