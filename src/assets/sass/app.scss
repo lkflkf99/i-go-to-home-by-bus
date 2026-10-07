@@ -178,6 +178,12 @@ a,
   overflow: hidden;
 }
 
+.app-content.is-details {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .tab-bar {
   display: flex;
   justify-content: space-around;

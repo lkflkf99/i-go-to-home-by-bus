@@ -81,6 +81,7 @@
         </CustomMarker>
       </GoogleMap>
     </div>
+    <div ref="listRef" class="route-list">
     <ul class="settings-group" v-if="isPageLoading">
       <RouteRowSkeleton v-for="index in 8" :key="index" variant="stop" :lines="1" />
     </ul>
@@ -90,7 +91,6 @@
         :class="{ 'is-map-focus': focusedStopKey === stopKey(stop) }"
         v-for="stop in displayStops"
         :key="stopKey(stop)"
-        :ref="(el) => setStopRow(stopKey(stop), el)"
         @click="() => handleStopClick(stop)"
       >
         <div class="flex min-w-0 gap-x-3">
@@ -130,6 +130,7 @@
         </div>
       </li>
     </ul>
+    </div>
 
     <el-dialog v-model="dialog.visible" :title="dialog.title" width="90%">
       <img :src="dialog.imageUrl" style="width: 100%; border-radius: 8px" />
@@ -201,7 +202,7 @@ const { mapRef, mapStyles, isMapReady, themeClass, fitRoute } = useThemedMap({
 const displayStops = ref<DisplayStops[]>([])
 const userLocation = ref<{ lat: number; lng: number } | null>(null)
 const focusedStopKey = ref('')
-const stopRowEls = new Map<string, HTMLElement>()
+const listRef = ref<HTMLElement | null>(null)
 const allVariants = ref<RouteVariant[]>([])
 const selectedVariant = ref<RouteVariant | null>(null)
 const route = useRoute()
@@ -388,20 +389,49 @@ const rememberLocation = (location: GeoLocation | null) => {
   userLocation.value = location ? { lat: location.latitude, lng: location.longitude } : null
 }
 
-const setStopRow = (key: string, el: unknown) => {
-  if (el instanceof HTMLElement) {
-    stopRowEls.set(key, el)
-    return
-  }
-  stopRowEls.delete(key)
+const focusStop = (stop: DisplayStops) => {
+  focusedStopKey.value = stopKey(stop)
+  nextTick(() => {
+    const list = listRef.value
+    const row = list?.querySelector<HTMLElement>('.route-row.is-map-focus')
+    if (!row || !list) {
+      return
+    }
+    const listRect = list.getBoundingClientRect()
+    const rowRect = row.getBoundingClientRect()
+    const top = Math.max(
+      0,
+      list.scrollTop + (rowRect.top - listRect.top) - (list.clientHeight - rowRect.height) / 2
+    )
+    const start = list.scrollTop
+    list.scrollTo({ top, behavior: 'smooth' })
+    window.setTimeout(() => {
+      if (list.scrollTop === start && top !== start) {
+        list.scrollTop = top
+      }
+    }, 80)
+  })
 }
 
-const focusStop = (stop: DisplayStops) => {
-  const key = stopKey(stop)
-  focusedStopKey.value = key
-  nextTick(() => {
-    stopRowEls.get(key)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-  })
+const nearestStop = () => {
+  return displayStops.value.reduce<DisplayStops | null>((best, stop) => {
+    if (!Number.isFinite(stop.distance)) {
+      return best
+    }
+    if (!best || stop.distance < best.distance) {
+      return stop
+    }
+    return best
+  }, null)
+}
+
+const selectNearestStop = async () => {
+  const stop = nearestStop()
+  if (!stop) {
+    return
+  }
+  await nextTick()
+  focusStop(stop)
 }
 
 const applyDistances = (stops: DisplayStops[], location: GeoLocation | null) => {
@@ -516,6 +546,7 @@ const fetchDetails = async (keepVariant = false) => {
     isPageLoading.value = false
   }
   await refreshEtas(false)
+  await selectNearestStop()
 }
 
 const selectVariant = async (variant: RouteVariant) => {
@@ -535,6 +566,7 @@ const selectVariant = async (variant: RouteVariant) => {
     isPageLoading.value = false
   }
   await refreshEtas(false)
+  await selectNearestStop()
 }
 
 const handleSwitchDirection = () => {
@@ -568,6 +600,7 @@ watch(
     const currLocation = await getCurrentLocationOrNull()
     rememberLocation(currLocation)
     displayStops.value = applyDistances(displayStops.value, currLocation)
+    await selectNearestStop()
   }
 )
 </script>
@@ -575,9 +608,14 @@ watch(
 <style scoped>
 .route-details {
   --route-map-height: 200px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .route-map-wrap {
+  flex-shrink: 0;
   height: var(--route-map-height);
   margin-top: 8px;
   border-radius: 16px;
@@ -596,12 +634,32 @@ watch(
   height: 100%;
 }
 
+.route-list {
+  flex: 1;
+  min-height: 0;
+  margin-top: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+}
+
+.route-list .settings-group {
+  margin-top: 0;
+}
+
 .route-row.is-map-focus {
   background: var(--row-active);
   margin-left: -16px;
   margin-right: -16px;
   padding-left: 16px;
   padding-right: 16px;
+}
+
+.toolbar-row,
+.variant-row {
+  flex-shrink: 0;
 }
 
 .toolbar-row {

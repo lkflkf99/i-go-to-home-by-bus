@@ -11,7 +11,7 @@
         <span class="nav-btn" aria-hidden="true"></span>
       </header>
 
-      <main ref="contentRef" class="app-content" :class="{ 'is-map': isMap }">
+      <main ref="contentRef" class="app-content" :class="{ 'is-map': isMap, 'is-details': isDetails }">
         <RouterView v-slot="{ Component }">
           <keep-alive :include="keptViews">
             <component :is="Component" :key="viewKey" />
@@ -70,6 +70,7 @@ const tabs = computed(() => [
 ])
 
 const showBack = computed(() => route.path === '/route/details')
+const isDetails = computed(() => route.path === '/route/details')
 const isMap = computed(() => route.path === '/map')
 const viewKey = computed(() => (route.path === '/route/details' ? route.fullPath : route.path))
 
