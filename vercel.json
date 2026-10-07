@@ -1,0 +1,21 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/api/ctb/:path*",
+      "destination": "https://rt.data.gov.hk/v1/transport/citybus-nwfb/:path*"
+    },
+    {
+      "source": "/api/kmb/:path*",
+      "destination": "https://data.etabus.gov.hk/v1/transport/kmb/:path*"
+    },
+    {
+      "source": "/api/batch/:path*",
+      "destination": "https://rt.data.gov.hk/v1/transport/batch/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
