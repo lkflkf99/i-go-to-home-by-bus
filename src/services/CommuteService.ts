@@ -24,12 +24,14 @@ import {
   getRouteJt,
   getRouteStopFare,
   getRouteStopMap,
+  getRouteVariants,
   getRoutesThroughStop,
   getStopCompany,
   includesQuery,
   isRouteServingNow,
   normalizeStopName,
   parseRouteCatalogKey,
+  pickRouteVariant,
   resetCatalogCache,
   resetFareCache,
   resetRouteStopCache,
@@ -39,7 +41,10 @@ import {
   scaleJourneyMinutes,
   sortRouteNumbers,
   stopMatchesQuery,
+  toVariantRoute,
+  variantsForDirection,
 } from '@/utils'
+import type { RouteVariant } from '@/utils/routeVariants'
 
 export interface GeoLocation {
   latitude: number
@@ -60,6 +65,7 @@ export interface ResolvedStop {
 interface DirectionLeg {
   direction: 'inbound' | 'outbound'
   dirCode: 'I' | 'O'
+  route: BusRoute
   stops: ResolvedStop[]
   nearest: ResolvedStop | null
   placeStop: ResolvedStop | null
@@ -347,11 +353,43 @@ export const loadStopsByIds = async (
   return withFares(route, direction, withDistance(resolved, location))
 }
 
-const nearestStop = (stops: ResolvedStop[]) => {
-  if (!stops.length) {
-    return null
+const variantForDirection = (
+  route: BusRoute,
+  direction: 'inbound' | 'outbound',
+  variant?: RouteVariant | null
+) => {
+  if (variant) {
+    return variant
   }
-  return stops.reduce((closest, stop) => (stop.distance < closest.distance ? stop : closest))
+  return pickRouteVariant(
+    variantsForDirection(getRouteVariants(getCompany(route), route.route), direction),
+    route.service_type
+  )
+}
+
+export const loadStopsForDirection = async (
+  route: BusRoute,
+  direction: 'inbound' | 'outbound',
+  location: GeoLocation | null,
+  variant?: RouteVariant | null
+): Promise<ResolvedStop[]> => {
+  const resolved = variantForDirection(route, direction, variant)
+  if (resolved?.stopIds.length) {
+    return loadStopsByIds(toVariantRoute(resolved), direction, resolved.stopIds, location)
+  }
+  return fetchDirectionStops(route, direction, location)
+}
+
+const nearestStop = (stops: ResolvedStop[]) => {
+  return stops.reduce<ResolvedStop | null>((closest, stop) => {
+    if (!Number.isFinite(stop.distance)) {
+      return closest
+    }
+    if (!closest || stop.distance < closest.distance) {
+      return stop
+    }
+    return closest
+  }, null)
 }
 
 const stopNearPlace = (stops: ResolvedStop[], place: SavedPlace | null) => {
@@ -382,10 +420,13 @@ const buildLeg = async (
   location: GeoLocation | null,
   place: SavedPlace | null
 ): Promise<DirectionLeg> => {
-  const stops = await fetchDirectionStops(route, direction, location)
+  const variant = variantForDirection(route, direction)
+  const usedRoute = variant ? toVariantRoute(variant) : route
+  const stops = await loadStopsForDirection(route, direction, location, variant)
   return {
     direction,
     dirCode: directionMeta[direction].code,
+    route: usedRoute,
     stops,
     nearest: nearestStop(stops),
     placeStop: stopNearPlace(stops, place),
@@ -920,9 +961,18 @@ export const loadLiveFavorite = async (
   ])
   const servesPlace = !!(outbound.placeStop || inbound.placeStop)
   const leg = pickLeg([outbound, inbound], place)
-  const etas = leg?.nearest ? await fetchEtas(route, leg.nearest.stop, leg.dirCode) : []
+  const usedRoute = leg?.route || route
+  const etas = leg?.nearest ? await fetchEtas(usedRoute, leg.nearest.stop, leg.dirCode) : []
 
-  return toLiveFavorite(route, leg, etas, servesPlace)
+  return toLiveFavorite(
+    {
+      ...route,
+      service_type: usedRoute.service_type || route.service_type,
+    },
+    leg,
+    etas,
+    servesPlace
+  )
 }
 
 export const refreshFavoriteEtas = async (item: LiveFavorite): Promise<LiveFavorite> => {

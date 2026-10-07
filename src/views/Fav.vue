@@ -115,7 +115,8 @@ import {
   textByLocale,
   withCompany,
 } from '@/utils'
-import { loadLiveFavorite, refreshFavoriteEtas } from '@/services/CommuteService'
+import { loadLiveFavorite } from '@/services/CommuteService'
+import { ensureHkbusRouteIndex } from '@/services/BusService'
 
 type CommuteFilter = 'home' | 'work' | null
 type DisplayFavorite = LiveFavorite & { etasLoading: boolean }
@@ -217,7 +218,10 @@ const loadLive = async (resetEtas = false) => {
     return resetEtas ? { ...current, etasLoading: true } : current
   })
 
-  const location = await getCurrentLocationOrNull()
+  const [location] = await Promise.all([
+    getCurrentLocationOrNull(),
+    ensureHkbusRouteIndex().catch(() => undefined),
+  ])
   if (gen !== loadGen) {
     return
   }
@@ -244,19 +248,12 @@ const loadLive = async (resetEtas = false) => {
 }
 
 const handleRefresh = async () => {
-  if (!liveFavorites.value.length || liveFavorites.value.some((item) => item.etasLoading)) {
-    await loadLive()
-    return
-  }
-
   isRefreshing.value = true
-  liveFavorites.value = await Promise.all(
-    liveFavorites.value.map(async (item) => ({
-      ...(await refreshFavoriteEtas(item)),
-      etasLoading: false,
-    }))
-  )
-  isRefreshing.value = false
+  try {
+    await loadLive()
+  } finally {
+    isRefreshing.value = false
+  }
 }
 
 const toggleFilter = async (next: 'home' | 'work') => {

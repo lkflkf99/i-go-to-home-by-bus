@@ -114,7 +114,7 @@ import {
 } from '@/utils'
 import type { RouteVariant } from '@/utils/routeVariants'
 import { usePrefsStore } from '@/stores/prefs'
-import { loadRouteEtas, loadRouteStops, loadStopsByIds } from '@/services/CommuteService'
+import { loadRouteEtas, loadStopsForDirection } from '@/services/CommuteService'
 import { ensureHkbusRouteIndex } from '@/services/BusService'
 import type { GeoLocation, ResolvedStop } from '@/services/CommuteService'
 import type { BusRoute, Eta } from '@/model'
@@ -374,9 +374,7 @@ const loadStopsFor = async (
   location: GeoLocation | null
 ) => {
   const direction = getDirection()
-  const stops = variant?.stopIds.length
-    ? await loadStopsByIds(toVariantRoute(variant), direction, variant.stopIds, location)
-    : await loadRouteStops(busRoute, direction, location)
+  const stops = await loadStopsForDirection(busRoute, direction, location, variant)
   displayStops.value = stops.map((stop) => toDisplayStop(stop))
 }
 
