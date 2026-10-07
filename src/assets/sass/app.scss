@@ -178,7 +178,9 @@ a,
   overflow: hidden;
 }
 
-.app-content.is-details {
+.app-content.is-details,
+.app-content.is-fav,
+.app-content.is-search {
   display: flex;
   flex-direction: column;
   overflow: hidden;

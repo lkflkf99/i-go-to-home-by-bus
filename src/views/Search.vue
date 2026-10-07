@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="search-page">
     <div class="sticky-search">
       <el-input
         v-model="searchInput"
@@ -15,7 +15,8 @@
       />
     </div>
 
-    <ul class="settings-group" v-infinite-scroll="loadRoute">
+    <div ref="listRef" class="search-list" v-infinite-scroll="loadRoute">
+    <ul class="settings-group">
       <li
         class="route-row"
         v-for="(item, index) in displayRouteList"
@@ -40,6 +41,7 @@
         </div>
       </li>
     </ul>
+    </div>
 
     <Keyboard ref="keyboardRef" @change="handleInput" :letter-keys="letterKeys" />
   </div>
@@ -56,6 +58,7 @@ import { getCompany, textByLocale } from '@/utils'
 
 const { t } = useI18n()
 const keyboardRef = ref()
+const listRef = ref<HTMLElement | null>(null)
 const scrollCount = ref(10)
 const searchInput = ref('')
 const displayRouteList = ref(JSON.parse(localStorage.getItem('routes') || '[]').slice(0, 10))
@@ -73,6 +76,11 @@ watch(
         item.route.startsWith(value.toUpperCase())
       )
     }
+    nextTick(() => {
+      if (listRef.value) {
+        listRef.value.scrollTop = 0
+      }
+    })
   }
 )
 
@@ -134,3 +142,33 @@ onDeactivated(() => {
   keyboardRef.value?.close()
 })
 </script>
+
+<style scoped>
+.search-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sticky-search {
+  position: static;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 0 12px;
+}
+
+.search-list {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+}
+
+.search-list .settings-group {
+  margin-top: 0;
+}
+</style>

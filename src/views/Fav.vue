@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="fav-page">
     <div class="action-row toolbar-row">
       <el-button
         class="toolbar-chip"
@@ -32,6 +32,7 @@
 
     <p v-if="filterBanner" class="filter-banner">{{ filterBanner }}</p>
 
+    <div class="fav-list">
     <p v-if="!store.favRoutes.length" class="empty-state">
       {{ t('fav.empty') }}
     </p>
@@ -91,6 +92,7 @@
         </p>
       </li>
     </ul>
+    </div>
   </div>
 </template>
 
@@ -302,6 +304,33 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.fav-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar-row,
+.filter-banner {
+  flex-shrink: 0;
+}
+
+.fav-list {
+  flex: 1;
+  min-height: 0;
+  margin-top: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+}
+
+.fav-list .settings-group {
+  margin-top: 0;
+}
+
 .toolbar-row {
   align-items: center;
 }

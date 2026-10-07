@@ -11,7 +11,11 @@
         <span class="nav-btn" aria-hidden="true"></span>
       </header>
 
-      <main ref="contentRef" class="app-content" :class="{ 'is-map': isMap, 'is-details': isDetails }">
+      <main
+        ref="contentRef"
+        class="app-content"
+        :class="{ 'is-map': isMap, 'is-details': isDetails, 'is-fav': isFav, 'is-search': isSearch }"
+      >
         <RouterView v-slot="{ Component }">
           <keep-alive :include="keptViews">
             <component :is="Component" :key="viewKey" />
@@ -71,6 +75,8 @@ const tabs = computed(() => [
 
 const showBack = computed(() => route.path === '/route/details')
 const isDetails = computed(() => route.path === '/route/details')
+const isFav = computed(() => route.path === '/fav')
+const isSearch = computed(() => route.path === '/route')
 const isMap = computed(() => route.path === '/map')
 const viewKey = computed(() => (route.path === '/route/details' ? route.fullPath : route.path))
 
@@ -105,7 +111,11 @@ const isActive = (path: string) => {
 
 const selectTab = (path: string) => {
   if (route.path === path) {
-    contentRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
+    const listSelector = path === '/fav' ? '.fav-list' : path === '/route' ? '.search-list' : ''
+    const scroller = listSelector
+      ? contentRef.value?.querySelector<HTMLElement>(listSelector) || contentRef.value
+      : contentRef.value
+    scroller?.scrollTo({ top: 0, behavior: 'smooth' })
     return
   }
   hapticTap()

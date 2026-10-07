@@ -42,9 +42,9 @@
         :class="themeClass"
         :api-key="GOOGLE_MAPS_API_KEY"
         :center="mapCenter"
-        :zoom="13"
+        :zoom="16"
         :styles="mapStyles"
-        gesture-handling="cooperative"
+        gesture-handling="greedy"
       >
         <Polyline :options="polylineOptions" />
         <CustomMarker
@@ -196,8 +196,8 @@ interface DisplayStops {
 
 const { t } = useI18n()
 const prefs = usePrefsStore()
-const { mapRef, mapStyles, isMapReady, themeClass, fitRoute } = useThemedMap({
-  gestureHandling: 'cooperative',
+const { mapRef, mapStyles, isMapReady, themeClass, fitFocus } = useThemedMap({
+  gestureHandling: 'greedy',
 })
 const displayStops = ref<DisplayStops[]>([])
 const userLocation = ref<{ lat: number; lng: number } | null>(null)
@@ -365,11 +365,6 @@ const routePoints = computed(() =>
 
 const routeSignature = computed(() => routePoints.value.map((point) => `${point.lat},${point.lng}`).join('|'))
 
-const mapCenter = computed(() => {
-  const first = routePoints.value[0]
-  return first ? { lat: first.lat, lng: first.lng } : { lat: 22.3193, lng: 114.1694 }
-})
-
 const routeStroke = computed(() => {
   appTheme.value
   return getComputedStyle(document.documentElement).getPropertyValue('--el-color-primary').trim() || '#409eff'
@@ -423,6 +418,37 @@ const nearestStop = () => {
     }
     return best
   }, null)
+}
+
+const FOCUS_ZOOM = 16
+const USER_ON_MAP_METERS = 1200
+
+const stopLatLng = (stop: DisplayStops | null | undefined) => {
+  if (!stop || !Number.isFinite(Number(stop.lat)) || !Number.isFinite(Number(stop.long))) {
+    return null
+  }
+  return { lat: Number(stop.lat), lng: Number(stop.long) }
+}
+
+const mapCenter = computed(() => {
+  return stopLatLng(routePoints.value[0]?.stop) || { lat: 22.3193, lng: 114.1694 }
+})
+
+const focusMap = () => {
+  const focused = displayStops.value.find((stop) => stopKey(stop) === focusedStopKey.value)
+  const stop = focused || nearestStop()
+  const point = stopLatLng(stop)
+  const points = point ? [point] : []
+  if (userLocation.value && stop && Number.isFinite(stop.distance) && stop.distance <= USER_ON_MAP_METERS) {
+    points.push(userLocation.value)
+  }
+  if (!points.length) {
+    const fallback = stopLatLng(routePoints.value[0]?.stop)
+    if (fallback) {
+      points.push(fallback)
+    }
+  }
+  fitFocus(points, FOCUS_ZOOM)
 }
 
 const selectNearestStop = async () => {
@@ -585,9 +611,9 @@ onMounted(() => {
   fetchDetails()
 })
 
-watch([isMapReady, routeSignature], () => {
+watch([isMapReady, routeSignature, focusedStopKey, userLocation], () => {
   nextTick(() => {
-    fitRoute(routePoints.value.map(({ lat, lng }) => ({ lat, lng })))
+    focusMap()
   })
 })
 
@@ -607,7 +633,7 @@ watch(
 
 <style scoped>
 .route-details {
-  --route-map-height: 200px;
+  --route-map-height: 300px;
   flex: 1;
   min-height: 0;
   display: flex;

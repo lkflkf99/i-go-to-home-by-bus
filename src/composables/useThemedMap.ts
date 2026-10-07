@@ -11,6 +11,7 @@ type ThemedMapHandle = {
     setOptions: (options: Record<string, unknown>) => void
     fitBounds: (bounds: unknown, padding?: number) => void
     getZoom: () => number | undefined
+    setCenter: (point: LatLng) => void
     setZoom: (zoom: number) => void
   }
   api?: {
@@ -30,8 +31,6 @@ type UseThemedMapOptions = {
 }
 
 export const GOOGLE_MAPS_API_KEY = 'AIzaSyAd3JuKmaDu5q7FnmlvzjDb4bTd06BGAjY'
-
-const MAX_FIT_ZOOM = 16
 
 export const useThemedMap = (options: UseThemedMapOptions = {}) => {
   const mapRef = ref<ThemedMapHandle | null>(null)
@@ -130,24 +129,30 @@ export const useThemedMap = (options: UseThemedMapOptions = {}) => {
     applyTrafficLayer(map)
   }
 
-  const fitRoute = (path: LatLng[]) => {
+  const fitFocus = (points: LatLng[], zoom = 16) => {
     fitListener?.remove()
     fitListener = null
     const handle = mapRef.value
     const map = handle?.map
     const api = handle?.api
-    if (!handle?.ready || !map || !api || !path.length) {
+    if (!handle?.ready || !map || !api || !points.length) {
+      return
+    }
+
+    if (points.length === 1) {
+      map.setCenter(points[0])
+      map.setZoom(zoom)
       return
     }
 
     const bounds = new api.LatLngBounds()
-    path.forEach((point) => bounds.extend(point))
-    map.fitBounds(bounds, 12)
+    points.forEach((point) => bounds.extend(point))
+    map.fitBounds(bounds, 36)
     fitListener = api.event.addListenerOnce(map, 'idle', () => {
       fitListener = null
-      const zoom = map.getZoom()
-      if (typeof zoom === 'number' && zoom > MAX_FIT_ZOOM) {
-        map.setZoom(MAX_FIT_ZOOM)
+      const nextZoom = map.getZoom()
+      if (typeof nextZoom === 'number' && nextZoom > zoom) {
+        map.setZoom(zoom)
       }
     })
   }
@@ -162,5 +167,5 @@ export const useThemedMap = (options: UseThemedMapOptions = {}) => {
     clearTrafficTiles()
   })
 
-  return { mapRef, mapStyles, isMapReady, themeClass, fitRoute }
+  return { mapRef, mapStyles, isMapReady, themeClass, fitFocus }
 }
