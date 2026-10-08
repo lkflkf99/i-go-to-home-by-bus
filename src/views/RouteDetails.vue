@@ -208,6 +208,11 @@ const selectedVariant = ref<RouteVariant | null>(null)
 const route = useRoute()
 const isPageLoading = ref(false)
 const isRefreshing = ref(false)
+const AUTO_REFRESH_MS = 30_000
+let viewGeneration = 0
+let pageAlive = true
+let autoRefreshTimer: number | undefined
+let refreshTask: Promise<void> | null = null
 const isOutbound = ref(route.query.direction !== 'inbound')
 const dialog = ref({
   visible: false,
@@ -510,31 +515,30 @@ const handleViewTrafficCamClick = (camData?: TrafficCam) => {
 }
 
 const refreshEtas = async (force = false) => {
+  const generation = viewGeneration
   const busRoute = activeRoute.value
   if (!busRoute || !displayStops.value.length || !isServingNow.value) {
     return
   }
 
-  isRefreshing.value = force
-  try {
-    const etaBySeq = await loadRouteEtas(
-      busRoute,
-      getDirection(),
-      displayStops.value.map((stop) => ({
-        stop: stop.stop,
-        name_tc: stop.stop_tc,
-        name_en: stop.stop_en,
-        lat: stop.lat,
-        long: stop.long,
-        seq: stop.seq,
-        distance: stop.distance,
-      })),
-      { force }
-    )
-    displayStops.value = applyEtas(displayStops.value, etaBySeq)
-  } finally {
-    isRefreshing.value = false
+  const etaBySeq = await loadRouteEtas(
+    busRoute,
+    getDirection(),
+    displayStops.value.map((stop) => ({
+      stop: stop.stop,
+      name_tc: stop.stop_tc,
+      name_en: stop.stop_en,
+      lat: stop.lat,
+      long: stop.long,
+      seq: stop.seq,
+      distance: stop.distance,
+    })),
+    { force }
+  )
+  if (!pageAlive || generation !== viewGeneration) {
+    return
   }
+  displayStops.value = applyEtas(displayStops.value, etaBySeq)
 }
 
 const loadStopsFor = async (
@@ -542,12 +546,17 @@ const loadStopsFor = async (
   busRoute: BusRoute,
   location: GeoLocation | null
 ) => {
+  const generation = viewGeneration
   const direction = getDirection()
   const stops = await loadStopsForDirection(busRoute, direction, location, variant)
+  if (!pageAlive || generation !== viewGeneration) {
+    return
+  }
   displayStops.value = stops.map((stop) => toDisplayStop(stop))
 }
 
 const fetchDetails = async (keepVariant = false) => {
+  const generation = ++viewGeneration
   const busRoute = routeFromQuery()
   if (!busRoute) {
     return
@@ -569,9 +578,17 @@ const fetchDetails = async (keepVariant = false) => {
     selectedVariant.value = next
     await loadStopsFor(next, busRoute, currLocation)
   } finally {
-    isPageLoading.value = false
+    if (generation === viewGeneration) {
+      isPageLoading.value = false
+    }
+  }
+  if (generation !== viewGeneration) {
+    return
   }
   await refreshEtas(false)
+  if (generation !== viewGeneration) {
+    return
+  }
   await selectNearestStop()
 }
 
@@ -580,6 +597,7 @@ const selectVariant = async (variant: RouteVariant) => {
     return
   }
 
+  const generation = ++viewGeneration
   selectedVariant.value = variant
   focusedStopKey.value = ''
   const busRoute = toVariantRoute(variant)
@@ -589,9 +607,17 @@ const selectVariant = async (variant: RouteVariant) => {
     rememberLocation(currLocation)
     await loadStopsFor(variant, busRoute, currLocation)
   } finally {
-    isPageLoading.value = false
+    if (generation === viewGeneration) {
+      isPageLoading.value = false
+    }
+  }
+  if (generation !== viewGeneration) {
+    return
   }
   await refreshEtas(false)
+  if (generation !== viewGeneration) {
+    return
+  }
   await selectNearestStop()
 }
 
@@ -603,12 +629,90 @@ const handleSwitchDirection = () => {
   fetchDetails(true)
 }
 
+const refreshLiveData = (manual = false): Promise<void> => {
+  if (refreshTask) {
+    return manual
+      ? refreshTask.then(() => {
+          if (!pageAlive) {
+            return
+          }
+          return refreshLiveData(true)
+        })
+      : refreshTask
+  }
+
+  const generation = viewGeneration
+  if (manual) {
+    isRefreshing.value = true
+  }
+
+  refreshTask = (async () => {
+    try {
+      if (document.hidden || isPageLoading.value || !displayStops.value.length) {
+        return
+      }
+
+      const locationPromise = getCurrentLocationOrNull(4000, { silent: true })
+      const etaPromise = refreshEtas(true)
+      const location = await locationPromise
+      await etaPromise
+      if (!pageAlive || generation !== viewGeneration) {
+        return
+      }
+      if (location) {
+        rememberLocation(location)
+        displayStops.value = applyDistances(displayStops.value, location)
+      }
+    } finally {
+      refreshTask = null
+      if (manual && pageAlive && generation === viewGeneration) {
+        isRefreshing.value = false
+      }
+    }
+  })()
+
+  return refreshTask
+}
+
+const stopAutoRefresh = () => {
+  if (autoRefreshTimer === undefined) {
+    return
+  }
+  window.clearInterval(autoRefreshTimer)
+  autoRefreshTimer = undefined
+}
+
+const startAutoRefresh = () => {
+  stopAutoRefresh()
+  autoRefreshTimer = window.setInterval(() => {
+    void refreshLiveData()
+  }, AUTO_REFRESH_MS)
+}
+
+const handleVisibilityChange = () => {
+  if (document.hidden) {
+    stopAutoRefresh()
+    return
+  }
+  void refreshLiveData()
+  startAutoRefresh()
+}
+
 const handleRefresh = () => {
-  refreshEtas(true)
+  void refreshLiveData(true)
 }
 
 onMounted(() => {
   fetchDetails()
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  startAutoRefresh()
+})
+
+onUnmounted(() => {
+  pageAlive = false
+  viewGeneration += 1
+  stopAutoRefresh()
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 
 watch([isMapReady, routeSignature, focusedStopKey, userLocation], () => {

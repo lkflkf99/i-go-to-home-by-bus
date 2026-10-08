@@ -8,7 +8,7 @@ interface GeoLocation {
 
 export const isLocationEnabled = () => localStorage.getItem('locationEnabled') !== 'false'
 
-export const getCurrentLocation = (): Promise<GeoLocation> => {
+export const getCurrentLocation = (options?: { silent?: boolean }): Promise<GeoLocation> => {
   return new Promise((resolve, reject) => {
     if (!isLocationEnabled()) {
       reject(new Error('Location disabled'))
@@ -16,7 +16,9 @@ export const getCurrentLocation = (): Promise<GeoLocation> => {
     }
 
     if (!navigator.geolocation) {
-      ElMessage.error({ message: i18n.global.t('location.unsupported') })
+      if (!options?.silent) {
+        ElMessage.error({ message: i18n.global.t('location.unsupported') })
+      }
       reject(new Error('Geolocation is not supported by this browser.'))
       return
     }
@@ -29,7 +31,7 @@ export const getCurrentLocation = (): Promise<GeoLocation> => {
         })
       },
       (error) => {
-        if (error.code === 1) {
+        if (error.code === 1 && !options?.silent) {
           ElMessage.error({ message: i18n.global.t('location.denied') })
         }
         reject(error)
@@ -38,14 +40,17 @@ export const getCurrentLocation = (): Promise<GeoLocation> => {
   })
 }
 
-export const getCurrentLocationOrNull = async (timeoutMs = 4000): Promise<GeoLocation | null> => {
+export const getCurrentLocationOrNull = async (
+  timeoutMs = 4000,
+  options?: { silent?: boolean }
+): Promise<GeoLocation | null> => {
   if (!isLocationEnabled()) {
     return null
   }
 
   try {
     return await Promise.race([
-      getCurrentLocation(),
+      getCurrentLocation(options),
       new Promise<GeoLocation>((_, reject) => {
         setTimeout(() => reject(new Error('Location timeout')), timeoutMs)
       }),
