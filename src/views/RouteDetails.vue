@@ -91,7 +91,12 @@
         :class="{ 'is-map-focus': focusedStopKey === stopKey(stop) }"
         v-for="stop in displayStops"
         :key="stopKey(stop)"
-        @click="() => handleStopClick(stop)"
+        @pointerdown="(event) => onStopPointerDown(event, stop)"
+        @pointermove="onStopPointerMove"
+        @pointerup="onStopPointerEnd"
+        @pointercancel="onStopPointerEnd"
+        @contextmenu.prevent="(event) => onStopContextMenu(event, stop)"
+        @click="() => onStopClick(stop)"
       >
         <div class="flex min-w-0 gap-x-3">
           <div class="min-w-0 flex-auto">
@@ -135,6 +140,23 @@
     <el-dialog v-model="dialog.visible" :title="dialog.title" width="90%">
       <img :src="dialog.imageUrl" style="width: 100%; border-radius: 8px" />
     </el-dialog>
+
+    <Teleport to="body">
+      <div v-if="stopMenu" class="stop-menu-layer" @pointerdown="closeStopMenu">
+        <div
+          class="stop-menu"
+          :class="{ 'is-above': stopMenu.above }"
+          :style="{ top: `${stopMenu.top}px`, left: `${stopMenu.left}px` }"
+          role="menu"
+          @pointerdown.stop
+        >
+          <p class="stop-menu-title">{{ textByLocale(stopMenu.stop.stop_tc, stopMenu.stop.stop_en) }}</p>
+          <button class="stop-menu-item" type="button" role="menuitem" @click="openStopInMaps(stopMenu.stop)">
+            {{ t('details.openInMaps') }}
+          </button>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -202,7 +224,14 @@ const { mapRef, mapStyles, isMapReady, themeClass, fitFocus } = useThemedMap({
 const displayStops = ref<DisplayStops[]>([])
 const userLocation = ref<{ lat: number; lng: number } | null>(null)
 const focusedStopKey = ref('')
+const centerOnPin = ref(false)
 const listRef = ref<HTMLElement | null>(null)
+const stopMenu = ref<{ stop: DisplayStops; top: number; left: number; above: boolean } | null>(null)
+const LONG_PRESS_MS = 480
+const LONG_PRESS_MOVE_PX = 10
+let pressTimer: number | undefined
+let pressPoint: { x: number; y: number; stop: DisplayStops } | null = null
+let suppressStopClick = false
 const allVariants = ref<RouteVariant[]>([])
 const selectedVariant = ref<RouteVariant | null>(null)
 const route = useRoute()
@@ -389,8 +418,11 @@ const rememberLocation = (location: GeoLocation | null) => {
   userLocation.value = location ? { lat: location.latitude, lng: location.longitude } : null
 }
 
-const focusStop = (stop: DisplayStops) => {
+const focusStop = (stop: DisplayStops, scrollList = true) => {
   focusedStopKey.value = stopKey(stop)
+  if (!scrollList) {
+    return
+  }
   nextTick(() => {
     const list = listRef.value
     const row = list?.querySelector<HTMLElement>('.route-row.is-map-focus')
@@ -444,7 +476,13 @@ const focusMap = () => {
   const stop = focused || nearestStop()
   const point = stopLatLng(stop)
   const points = point ? [point] : []
-  if (userLocation.value && stop && Number.isFinite(stop.distance) && stop.distance <= USER_ON_MAP_METERS) {
+  if (
+    !centerOnPin.value &&
+    userLocation.value &&
+    stop &&
+    Number.isFinite(stop.distance) &&
+    stop.distance <= USER_ON_MAP_METERS
+  ) {
     points.push(userLocation.value)
   }
   if (!points.length) {
@@ -461,8 +499,18 @@ const selectNearestStop = async () => {
   if (!stop) {
     return
   }
+  centerOnPin.value = false
   await nextTick()
   focusStop(stop)
+}
+
+const focusStopOnMap = (stop: DisplayStops) => {
+  centerOnPin.value = true
+  focusStop(stop, false)
+  const point = stopLatLng(stop)
+  if (point) {
+    fitFocus([point], FOCUS_ZOOM)
+  }
 }
 
 const applyDistances = (stops: DisplayStops[], location: GeoLocation | null) => {
@@ -484,7 +532,94 @@ const applyEtas = (stops: DisplayStops[], etaBySeq: Map<number, Eta[]>) => {
   }))
 }
 
-const handleStopClick = async (stop: DisplayStops) => {
+const clearStopPress = () => {
+  if (pressTimer !== undefined) {
+    window.clearTimeout(pressTimer)
+    pressTimer = undefined
+  }
+  pressPoint = null
+}
+
+const closeStopMenu = () => {
+  stopMenu.value = null
+}
+
+let ignoreMenuActionUntil = 0
+
+const openStopMenu = (event: { clientX: number; clientY: number }, stop: DisplayStops) => {
+  suppressStopClick = true
+  ignoreMenuActionUntil = Date.now() + 350
+  focusStopOnMap(stop)
+  const width = 220
+  const margin = 12
+  const half = width / 2
+  const left = Math.min(Math.max(margin + half, event.clientX), window.innerWidth - margin - half)
+  stopMenu.value = {
+    stop,
+    top: event.clientY,
+    left,
+    above: event.clientY > 140,
+  }
+}
+
+const isRowControl = (target: EventTarget | null) => {
+  return target instanceof Element && Boolean(target.closest('button, a'))
+}
+
+const onStopPointerDown = (event: PointerEvent, stop: DisplayStops) => {
+  if (event.button !== 0 || isRowControl(event.target)) {
+    return
+  }
+  suppressStopClick = false
+  clearStopPress()
+  pressPoint = { x: event.clientX, y: event.clientY, stop }
+  pressTimer = window.setTimeout(() => {
+    const point = pressPoint
+    clearStopPress()
+    if (!point) {
+      return
+    }
+    openStopMenu(point, point.stop)
+  }, LONG_PRESS_MS)
+}
+
+const onStopPointerMove = (event: PointerEvent) => {
+  if (!pressPoint) {
+    return
+  }
+  const dx = event.clientX - pressPoint.x
+  const dy = event.clientY - pressPoint.y
+  if (dx * dx + dy * dy > LONG_PRESS_MOVE_PX * LONG_PRESS_MOVE_PX) {
+    clearStopPress()
+  }
+}
+
+const onStopPointerEnd = () => {
+  clearStopPress()
+}
+
+const onStopContextMenu = (event: MouseEvent, stop: DisplayStops) => {
+  if (isRowControl(event.target)) {
+    return
+  }
+  clearStopPress()
+  openStopMenu(event, stop)
+}
+
+const onStopClick = (stop: DisplayStops) => {
+  if (suppressStopClick) {
+    suppressStopClick = false
+    return
+  }
+  closeStopMenu()
+  focusStopOnMap(stop)
+}
+
+const openStopInMaps = async (stop: DisplayStops) => {
+  if (Date.now() < ignoreMenuActionUntil) {
+    return
+  }
+  closeStopMenu()
   const loading = ElLoading.service({
     lock: true,
     text: t('details.openingMaps'),
@@ -702,16 +837,23 @@ const handleRefresh = () => {
   void refreshLiveData(true)
 }
 
+const onListScroll = () => {
+  closeStopMenu()
+}
+
 onMounted(() => {
   fetchDetails()
   document.addEventListener('visibilitychange', handleVisibilityChange)
+  listRef.value?.addEventListener('scroll', onListScroll, { passive: true })
   startAutoRefresh()
 })
 
 onUnmounted(() => {
   pageAlive = false
   viewGeneration += 1
+  clearStopPress()
   stopAutoRefresh()
+  listRef.value?.removeEventListener('scroll', onListScroll)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 
@@ -855,5 +997,54 @@ watch(
   --el-button-hover-bg-color: var(--el-color-primary);
   --el-button-hover-text-color: #fff;
   --el-button-hover-border-color: var(--el-color-primary);
+}
+
+.stop-menu-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.stop-menu {
+  position: fixed;
+  width: 220px;
+  transform: translate(-50%, 16px);
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--app-surface);
+  border: 0.5px solid var(--app-separator);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+.stop-menu.is-above {
+  transform: translate(-50%, calc(-100% - 12px));
+}
+
+.stop-menu-title {
+  margin: 0;
+  padding: 8px 12px 6px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--app-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stop-menu-item {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--el-color-primary);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.stop-menu-item:active {
+  background: var(--row-active);
 }
 </style>
