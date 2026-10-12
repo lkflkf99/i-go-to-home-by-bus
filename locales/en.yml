@@ -82,7 +82,7 @@ location:
   denied: Location permission was denied. Enable it in the browser or system settings.
   unsupported: Geolocation is not supported by this browser.
 eta:
-  due: Due
+  due: Almost there
   min: '{n} min'
 distance:
   m: '{n} m'

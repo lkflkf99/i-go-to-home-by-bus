@@ -82,7 +82,7 @@ location:
   denied: 請喺瀏覽器或系統設定開啟定位服務權限。
   unsupported: 瀏覽器唔支援定位服務。
 eta:
-  due: 即將到
+  due: 就快到站
   min: '{n} 分鐘'
 distance:
   m: '{n} 米'
