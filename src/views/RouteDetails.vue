@@ -144,8 +144,9 @@
     <Teleport to="body">
       <div v-if="stopMenu" class="stop-menu-layer" @pointerdown="closeStopMenu">
         <div
+          ref="stopMenuRef"
           class="stop-menu"
-          :class="{ 'is-above': stopMenu.above }"
+          :class="{ 'is-placed': stopMenu.placed }"
           :style="{ top: `${stopMenu.top}px`, left: `${stopMenu.left}px` }"
           role="menu"
           @pointerdown.stop
@@ -226,7 +227,8 @@ const userLocation = ref<{ lat: number; lng: number } | null>(null)
 const focusedStopKey = ref('')
 const centerOnPin = ref(false)
 const listRef = ref<HTMLElement | null>(null)
-const stopMenu = ref<{ stop: DisplayStops; top: number; left: number; above: boolean } | null>(null)
+const stopMenuRef = ref<HTMLElement | null>(null)
+const stopMenu = ref<{ stop: DisplayStops; top: number; left: number; placed: boolean } | null>(null)
 const LONG_PRESS_MS = 480
 const LONG_PRESS_MOVE_PX = 10
 let pressTimer: number | undefined
@@ -546,20 +548,71 @@ const closeStopMenu = () => {
 
 let ignoreMenuActionUntil = 0
 
-const openStopMenu = (event: { clientX: number; clientY: number }, stop: DisplayStops) => {
+const MENU_GAP = 12
+
+const readCssPx = (name: string) => {
+  const value = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name))
+  return Number.isFinite(value) ? value : 0
+}
+
+const placeStopMenu = (anchor: { x: number; y: number }, size: { width: number; height: number }) => {
+  const viewport = window.visualViewport
+  const viewWidth = viewport?.width ?? window.innerWidth
+  const viewHeight = viewport?.height ?? window.innerHeight
+  const boundsLeft = Math.max(MENU_GAP, readCssPx('--safe-left'))
+  const boundsTop = Math.max(MENU_GAP, readCssPx('--safe-top'))
+  const boundsRight = viewWidth - Math.max(MENU_GAP, readCssPx('--safe-right'))
+  const boundsBottom = viewHeight - Math.max(MENU_GAP, readCssPx('--safe-bottom'))
+
+  const left = anchor.x - size.width / 2
+  const belowTop = anchor.y + MENU_GAP
+  const aboveTop = anchor.y - MENU_GAP - size.height
+  const top = aboveTop >= boundsTop ? aboveTop : belowTop
+  const maxLeft = Math.max(boundsLeft, boundsRight - size.width)
+  const maxTop = Math.max(boundsTop, boundsBottom - size.height)
+
+  return {
+    left: Math.min(Math.max(left, boundsLeft), maxLeft),
+    top: Math.min(Math.max(top, boundsTop), maxTop),
+  }
+}
+
+const alignStopMenu = (anchor: { x: number; y: number }, stop: DisplayStops, attempt = 0) => {
+  nextTick(() => {
+    const menu = stopMenuRef.value
+    const current = stopMenu.value
+    if (!menu || !current || current.stop !== stop) {
+      return
+    }
+    const rect = menu.getBoundingClientRect()
+    if ((rect.width < 1 || rect.height < 1) && attempt < 3) {
+      alignStopMenu(anchor, stop, attempt + 1)
+      return
+    }
+    const desired = placeStopMenu(anchor, { width: rect.width, height: rect.height })
+    stopMenu.value = {
+      ...current,
+      left: current.left + (desired.left - rect.left),
+      top: current.top + (desired.top - rect.top),
+      placed: true,
+    }
+  })
+}
+
+const openStopMenu = (anchor: { x: number; y: number }, stop: DisplayStops) => {
+  if (!Number.isFinite(anchor.x) || !Number.isFinite(anchor.y)) {
+    return
+  }
   suppressStopClick = true
   ignoreMenuActionUntil = Date.now() + 350
   focusStopOnMap(stop)
-  const width = 220
-  const margin = 12
-  const half = width / 2
-  const left = Math.min(Math.max(margin + half, event.clientX), window.innerWidth - margin - half)
   stopMenu.value = {
     stop,
-    top: event.clientY,
-    left,
-    above: event.clientY > 140,
+    top: anchor.y,
+    left: anchor.x,
+    placed: false,
   }
+  alignStopMenu(anchor, stop)
 }
 
 const isRowControl = (target: EventTarget | null) => {
@@ -602,8 +655,16 @@ const onStopContextMenu = (event: MouseEvent, stop: DisplayStops) => {
   if (isRowControl(event.target)) {
     return
   }
+  const saved = pressPoint
   clearStopPress()
-  openStopMenu(event, stop)
+  // iOS contextmenu events often report 0,0 and would pin the menu to the corner.
+  if (event.clientX === 0 && event.clientY === 0) {
+    if (saved) {
+      openStopMenu(saved, saved.stop)
+    }
+    return
+  }
+  openStopMenu({ x: event.clientX, y: event.clientY }, stop)
 }
 
 const onStopClick = (stop: DisplayStops) => {
@@ -1008,7 +1069,9 @@ watch(
 .stop-menu {
   position: fixed;
   width: 220px;
-  transform: translate(-50%, 16px);
+  max-width: calc(100vw - 24px);
+  box-sizing: border-box;
+  visibility: hidden;
   padding: 4px;
   border-radius: 14px;
   background: var(--app-surface);
@@ -1016,8 +1079,8 @@ watch(
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
 }
 
-.stop-menu.is-above {
-  transform: translate(-50%, calc(-100% - 12px));
+.stop-menu.is-placed {
+  visibility: visible;
 }
 
 .stop-menu-title {
